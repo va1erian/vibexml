@@ -1,0 +1,221 @@
+#include "MainFrame.h"
+#include "SearchDialog.h"
+#include <wx/filedlg.h>
+#include <wx/msgdlg.h>
+#include <wx/filename.h>
+
+MainFrame::MainFrame()
+    : wxFrame(nullptr, wxID_ANY, "XML Viewer", wxDefaultPosition, wxSize(1200, 800)),
+      m_recentFilesMenu(nullptr),
+      m_currentFilePath(wxEmptyString)
+{
+    CreateMenuBar();
+    CreateStatusBar();
+
+    // Create splitter window
+    m_splitter = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
+                                      wxSP_3D | wxSP_LIVE_UPDATE);
+
+    // Create tree control (left panel)
+    m_treeCtrl = new XmlTreeCtrl(m_splitter, wxID_ANY);
+    m_treeCtrl->SetMinSize(wxSize(250, -1));
+
+    // Create editor control (right panel)
+    m_editorCtrl = new XmlEditorCtrl(m_splitter, wxID_ANY);
+
+    // Connect tree selection event
+    m_treeCtrl->Bind(wxEVT_TREE_SEL_CHANGED, &MainFrame::OnTreeItemSelected, this);
+
+    // Split the window
+    m_splitter->SplitVertically(m_treeCtrl, m_editorCtrl, 300);
+    m_splitter->SetMinimumPaneSize(200);
+
+    // Initialize recent files manager
+    m_recentFiles = new RecentFiles();
+    UpdateRecentFilesMenu();
+
+    // Set status bar text
+    GetStatusBar()->SetStatusText("Ready");
+}
+
+MainFrame::~MainFrame()
+{
+    delete m_recentFiles;
+}
+
+void MainFrame::CreateMenuBar()
+{
+    wxMenuBar* menuBar = new wxMenuBar();
+
+    // File menu
+    wxMenu* fileMenu = new wxMenu();
+    fileMenu->Append(ID_Open, "&Open...\tCtrl+O", "Open an XML file");
+    m_recentFilesMenu = new wxMenu();
+    fileMenu->AppendSubMenu(m_recentFilesMenu, "Recent &Files");
+    fileMenu->AppendSeparator();
+    fileMenu->Append(ID_Exit, "E&xit\tAlt+F4", "Exit the application");
+
+    // Edit menu
+    wxMenu* editMenu = new wxMenu();
+    editMenu->Append(ID_Find, "&Find...\tCtrl+F", "Find text in the document");
+    editMenu->Append(ID_FindNext, "Find &Next\tF3", "Find next occurrence");
+
+    // View menu
+    wxMenu* viewMenu = new wxMenu();
+    viewMenu->AppendCheckItem(ID_ToggleTree, "&Tree Panel\tCtrl+T", "Toggle tree panel visibility");
+    viewMenu->Check(ID_ToggleTree, true);
+
+    menuBar->Append(fileMenu, "&File");
+    menuBar->Append(editMenu, "&Edit");
+    menuBar->Append(viewMenu, "&View");
+
+    SetMenuBar(menuBar);
+
+    // Bind events
+    Bind(wxEVT_MENU, &MainFrame::OnOpenFile, this, ID_Open);
+    Bind(wxEVT_MENU, &MainFrame::OnExit, this, ID_Exit);
+    Bind(wxEVT_MENU, &MainFrame::OnFind, this, ID_Find);
+    Bind(wxEVT_MENU, &MainFrame::OnFindNext, this, ID_FindNext);
+    Bind(wxEVT_MENU, &MainFrame::OnToggleTreePanel, this, ID_ToggleTree);
+    Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
+}
+
+void MainFrame::CreateStatusBar()
+{
+    wxFrame::CreateStatusBar();
+    SetStatusText("Ready");
+}
+
+void MainFrame::OnOpenFile(wxCommandEvent& event)
+{
+    wxFileDialog openFileDialog(this, "Open XML file", "", "",
+                                "XML files (*.xml)|*.xml|All files (*.*)|*.*",
+                                wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+
+    if (openFileDialog.ShowModal() == wxID_CANCEL)
+        return;
+
+    wxString filePath = openFileDialog.GetPath();
+    LoadXmlFile(filePath);
+}
+
+void MainFrame::OnExit(wxCommandEvent& event)
+{
+    Close(true);
+}
+
+void MainFrame::OnFind(wxCommandEvent& event)
+{
+    SearchDialog dlg(this, m_editorCtrl);
+    dlg.ShowModal();
+}
+
+void MainFrame::OnFindNext(wxCommandEvent& event)
+{
+    if (m_editorCtrl)
+    {
+        m_editorCtrl->FindNext();
+    }
+}
+
+void MainFrame::OnToggleTreePanel(wxCommandEvent& event)
+{
+    bool isChecked = GetMenuBar()->IsChecked(ID_ToggleTree);
+    m_treeCtrl->Show(isChecked);
+    m_splitter->Layout();
+}
+
+void MainFrame::OnRecentFile(wxCommandEvent& event)
+{
+    int index = event.GetId() - ID_RecentFileBase;
+    wxString filePath = m_recentFiles->GetFile(index);
+    if (!filePath.IsEmpty())
+    {
+        LoadXmlFile(filePath);
+    }
+}
+
+void MainFrame::OnTreeItemSelected(wxTreeEvent& event)
+{
+    wxTreeItemId itemId = event.GetItem();
+    int lineNumber = m_treeCtrl->GetLineNumber(itemId);
+    if (lineNumber >= 0 && m_editorCtrl)
+    {
+        m_editorCtrl->GotoLine(lineNumber);
+    }
+}
+
+void MainFrame::OnClose(wxCloseEvent& event)
+{
+    m_recentFiles->Save();
+    event.Skip();
+}
+
+void MainFrame::LoadXmlFile(const wxString& filePath)
+{
+    if (!wxFileExists(filePath))
+    {
+        wxMessageBox("File does not exist: " + filePath, "Error", wxOK | wxICON_ERROR);
+        return;
+    }
+
+    // Load XML content into editor
+    if (!m_editorCtrl->LoadFile(filePath))
+    {
+        wxMessageBox("Failed to load file: " + filePath, "Error", wxOK | wxICON_ERROR);
+        return;
+    }
+
+    // Parse XML and build tree
+    if (!m_treeCtrl->LoadXmlFile(filePath))
+    {
+        wxMessageBox("Failed to parse XML file: " + filePath, "Error", wxOK | wxICON_ERROR);
+        return;
+    }
+
+    // Update recent files
+    m_currentFilePath = filePath;
+    m_recentFiles->AddFile(filePath);
+    UpdateRecentFilesMenu();
+
+    // Update status bar
+    wxFileName fileName(filePath);
+    GetStatusBar()->SetStatusText("Loaded: " + fileName.GetFullName());
+}
+
+void MainFrame::UpdateRecentFilesMenu()
+{
+    if (!m_recentFilesMenu)
+        return;
+
+    // Remove all existing items from the menu
+    while (m_recentFilesMenu->GetMenuItemCount() > 0)
+    {
+        wxMenuItem* item = m_recentFilesMenu->FindItemByPosition(0);
+        if (item)
+        {
+            m_recentFilesMenu->Destroy(item);
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    const auto& files = m_recentFiles->GetFiles();
+    if (files.empty())
+    {
+        m_recentFilesMenu->Append(wxID_ANY, "No recent files")->Enable(false);
+        return;
+    }
+
+    for (size_t i = 0; i < files.size(); ++i)
+    {
+        wxFileName fileName(files[i]);
+        wxString label = wxString::Format("&%zu %s", i + 1, fileName.GetFullName());
+        int id = ID_RecentFileBase + static_cast<int>(i);
+        m_recentFilesMenu->Append(id, label);
+        Bind(wxEVT_MENU, &MainFrame::OnRecentFile, this, id);
+    }
+}
+
