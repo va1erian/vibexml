@@ -147,7 +147,18 @@ void MainFrame::OnTreeItemSelected(wxTreeEvent& event)
 
 void MainFrame::OnClose(wxCloseEvent& event)
 {
-    m_recentFiles->Save();
+    // Clear tree to speed up shutdown cleanup
+    if (m_treeCtrl)
+    {
+        m_treeCtrl->DeleteAllItems();
+    }
+    
+    // Save recent files (destructor will also try to save, but this ensures it happens)
+    if (m_recentFiles)
+    {
+        m_recentFiles->Save();
+    }
+    
     event.Skip();
 }
 
@@ -173,7 +184,6 @@ void MainFrame::LoadXmlFile(const wxString& filePath)
         return;
     }
 
-    // Update recent files
     m_currentFilePath = filePath;
     m_recentFiles->AddFile(filePath);
     UpdateRecentFilesMenu();

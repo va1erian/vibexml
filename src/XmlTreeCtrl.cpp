@@ -1,7 +1,7 @@
 #include "XmlTreeCtrl.h"
 #include <wx/msgdlg.h>
 #include <wx/filename.h>
-#include <wx/textfile.h>
+#include <wx/file.h>
 #include <sstream>
 #include <map>
 
@@ -21,140 +21,152 @@ bool XmlTreeCtrl::LoadXmlFile(const wxString& filePath)
     m_itemNodeMap.clear();
     m_filePath = filePath;
 
-    if (!m_xmlDoc.Load(filePath))
+    // Parse XML with TinyXML-2
+    m_xmlDoc = std::make_unique<tinyxml2::XMLDocument>();
+    
+    // Convert wxString to UTF-8 for TinyXML-2
+    wxCharBuffer utf8Buffer = filePath.ToUTF8();
+    tinyxml2::XMLError error = m_xmlDoc->LoadFile(utf8Buffer.data());
+    
+    if (error != tinyxml2::XML_SUCCESS)
     {
         return false;
     }
 
-    // Build line number map by parsing the file
-    std::map<wxString, int> tagLineMap;
-    wxTextFile textFile;
-    if (textFile.Open(filePath))
-    {
-        wxString line;
-        for (size_t i = 0; i < textFile.GetLineCount(); ++i)
-        {
-            line = textFile[i];
-            // Find opening tags
-            size_t pos = 0;
-            while ((pos = line.find('<', pos)) != wxString::npos)
-            {
-                if (pos + 1 < line.Length() && line[pos + 1] != '/' && line[pos + 1] != '!' && line[pos + 1] != '?')
-                {
-                    size_t tagEnd = line.find_first_of(" >", pos + 1);
-                    if (tagEnd != wxString::npos)
-                    {
-                        wxString tag = line.SubString(pos + 1, tagEnd - 1);
-                        tag.Trim(true).Trim(false);
-                        if (!tag.IsEmpty() && tagLineMap.find(tag) == tagLineMap.end())
-                        {
-                            tagLineMap[tag] = static_cast<int>(i + 1);
-                        }
-                    }
-                }
-                pos++;
-            }
-        }
-        textFile.Close();
-    }
+    // Freeze the tree control to prevent UI updates during building
+    Freeze();
 
     // Create root item (hidden)
     m_rootItem = AddRoot("XML Document");
 
     // Build tree from XML document
-    wxXmlNode* root = m_xmlDoc.GetRoot();
+    tinyxml2::XMLElement* root = m_xmlDoc->FirstChildElement();
     if (root)
     {
-        int lineNumber = 1;
-        BuildTree(root, m_rootItem, lineNumber, tagLineMap);
-        ExpandAll();
+        BuildTree(root, m_rootItem);
+        // Don't expand all - let users expand nodes as needed for better performance
+        // Only expand the root level for better initial view
+        if (m_rootItem.IsOk())
+        {
+            Expand(m_rootItem);
+        }
     }
+
+    // Thaw the tree control to update the UI
+    Thaw();
 
     return true;
 }
 
-wxTreeItemId XmlTreeCtrl::BuildTree(wxXmlNode* node, const wxTreeItemId& parent, int& lineNumber, const std::map<wxString, int>& tagLineMap)
+wxTreeItemId XmlTreeCtrl::BuildTree(tinyxml2::XMLElement* element, const wxTreeItemId& parent)
 {
-    if (!node)
+    if (!element)
         return wxTreeItemId();
 
     wxTreeItemId item;
-    wxString label = FormatNodeLabel(node);
+    wxString label = FormatNodeLabel(element);
 
     item = AppendItem(parent, label);
 
     // Store XML node pointer
-    m_itemNodeMap[item] = node;
+    m_itemNodeMap[item] = element;
 
-    // Try to find line number from tag map, otherwise use approximation
-    wxString tagName = node->GetName();
-    auto it = tagLineMap.find(tagName);
-    if (it != tagLineMap.end())
-    {
-        m_itemLineMap[item] = it->second;
-        lineNumber = it->second; // Update current line number
-    }
-    else
+    // Use TinyXML-2's built-in line number information
+    int lineNumber = element->GetLineNum();
+    if (lineNumber > 0)
     {
         m_itemLineMap[item] = lineNumber;
     }
+    else
+    {
+        // Fallback if line number not available
+        m_itemLineMap[item] = 1;
+    }
 
     // Process attributes
-    if (node->GetAttributes())
+    const tinyxml2::XMLAttribute* attr = element->FirstAttribute();
+    while (attr)
     {
-        wxXmlAttribute* attr = node->GetAttributes();
-        while (attr)
-        {
-            wxString attrLabel = wxString::Format("@%s = \"%s\"", attr->GetName(), attr->GetValue());
-            wxTreeItemId attrItem = AppendItem(item, attrLabel);
-            m_itemLineMap[attrItem] = m_itemLineMap[item]; // Attributes are on the same line
-            attr = attr->GetNext();
-        }
+        wxString attrName = wxString::FromUTF8(attr->Name());
+        wxString attrValue = wxString::FromUTF8(attr->Value());
+        wxString attrLabel = wxString::Format("@%s = \"%s\"", attrName, attrValue);
+        wxTreeItemId attrItem = AppendItem(item, attrLabel);
+        // Attributes are on the same line as the element
+        m_itemLineMap[attrItem] = m_itemLineMap[item];
+        attr = attr->Next();
     }
 
     // Process child nodes
-    wxXmlNode* child = node->GetChildren();
+    tinyxml2::XMLNode* child = element->FirstChild();
     while (child)
     {
-        if (child->GetType() == wxXML_ELEMENT_NODE)
+        if (child->ToElement())
         {
-            lineNumber++;
-            BuildTree(child, item, lineNumber, tagLineMap);
+            // Element node
+            BuildTree(child->ToElement(), item);
         }
-        else if (child->GetType() == wxXML_TEXT_NODE)
+        else if (child->ToText())
         {
-            wxString text = child->GetContent();
-            text.Trim(true).Trim(false);
-            if (!text.IsEmpty())
+            // Text node
+            const char* textContent = child->ToText()->Value();
+            if (textContent)
             {
-                wxString textLabel = wxString::Format("[Text: %s]", text.Left(50));
-                if (text.Length() > 50)
-                    textLabel += "...";
-                wxTreeItemId textItem = AppendItem(item, textLabel);
-                m_itemLineMap[textItem] = m_itemLineMap[item];
-                m_itemNodeMap[textItem] = child; // Store text node
+                wxString text = wxString::FromUTF8(textContent);
+                text.Trim(true).Trim(false);
+                if (!text.IsEmpty())
+                {
+                    wxString textLabel = wxString::Format("[Text: %s]", text.Left(50));
+                    if (text.Length() > 50)
+                        textLabel += "...";
+                    wxTreeItemId textItem = AppendItem(item, textLabel);
+                    // Use line number from text node if available
+                    int textLineNumber = child->GetLineNum();
+                    if (textLineNumber > 0)
+                    {
+                        m_itemLineMap[textItem] = textLineNumber;
+                    }
+                    else
+                    {
+                        m_itemLineMap[textItem] = m_itemLineMap[item];
+                    }
+                    m_itemNodeMap[textItem] = child; // Store text node
+                }
             }
         }
-        child = child->GetNext();
+        child = child->NextSibling();
     }
 
     return item;
 }
 
-wxString XmlTreeCtrl::FormatNodeLabel(wxXmlNode* node) const
+wxTreeItemId XmlTreeCtrl::BuildTree(tinyxml2::XMLNode* node, const wxTreeItemId& parent)
 {
     if (!node)
+        return wxTreeItemId();
+
+    tinyxml2::XMLElement* element = node->ToElement();
+    if (element)
+    {
+        return BuildTree(element, parent);
+    }
+
+    return wxTreeItemId();
+}
+
+wxString XmlTreeCtrl::FormatNodeLabel(tinyxml2::XMLElement* element) const
+{
+    if (!element)
         return wxEmptyString;
 
-    wxString label = node->GetName();
+    wxString label = wxString::FromUTF8(element->Name());
 
     // Add attribute count if any
     int attrCount = 0;
-    wxXmlAttribute* attr = node->GetAttributes();
+    const tinyxml2::XMLAttribute* attr = element->FirstAttribute();
     while (attr)
     {
         attrCount++;
-        attr = attr->GetNext();
+        attr = attr->Next();
     }
 
     if (attrCount > 0)
@@ -165,42 +177,48 @@ wxString XmlTreeCtrl::FormatNodeLabel(wxXmlNode* node) const
     return label;
 }
 
-wxString XmlTreeCtrl::GetNodeAttributes(wxXmlNode* node) const
+wxString XmlTreeCtrl::GetNodeAttributes(tinyxml2::XMLElement* element) const
 {
-    if (!node || !node->GetAttributes())
+    if (!element)
         return wxEmptyString;
 
     wxString attributes;
-    wxXmlAttribute* attr = node->GetAttributes();
+    const tinyxml2::XMLAttribute* attr = element->FirstAttribute();
     bool first = true;
 
     while (attr)
     {
         if (!first)
             attributes += ", ";
-        attributes += wxString::Format("%s=\"%s\"", attr->GetName(), attr->GetValue());
+        wxString attrName = wxString::FromUTF8(attr->Name());
+        wxString attrValue = wxString::FromUTF8(attr->Value());
+        attributes += wxString::Format("%s=\"%s\"", attrName, attrValue);
         first = false;
-        attr = attr->GetNext();
+        attr = attr->Next();
     }
 
     return attributes;
 }
 
-wxString XmlTreeCtrl::GetNodeTextContent(wxXmlNode* node) const
+wxString XmlTreeCtrl::GetNodeTextContent(tinyxml2::XMLElement* element) const
 {
-    if (!node)
+    if (!element)
         return wxEmptyString;
 
     wxString content;
-    wxXmlNode* child = node->GetChildren();
+    tinyxml2::XMLNode* child = element->FirstChild();
 
     while (child)
     {
-        if (child->GetType() == wxXML_TEXT_NODE)
+        if (child->ToText())
         {
-            content += child->GetContent();
+            const char* textValue = child->ToText()->Value();
+            if (textValue)
+            {
+                content += wxString::FromUTF8(textValue);
+            }
         }
-        child = child->GetNext();
+        child = child->NextSibling();
     }
 
     return content.Trim(true).Trim(false);
@@ -251,10 +269,11 @@ void XmlTreeCtrl::OnMouseMove(wxMouseEvent& event)
         auto nodeIt = m_itemNodeMap.find(item);
         if (nodeIt != m_itemNodeMap.end() && nodeIt->second)
         {
-            wxXmlNode* node = nodeIt->second;
-            if (node->GetType() == wxXML_ELEMENT_NODE)
+            tinyxml2::XMLNode* node = nodeIt->second;
+            tinyxml2::XMLElement* element = node->ToElement();
+            if (element)
             {
-                wxString attributes = GetNodeAttributes(node);
+                wxString attributes = GetNodeAttributes(element);
                 if (!attributes.IsEmpty())
                 {
                     SetToolTip(attributes);
@@ -292,21 +311,30 @@ void XmlTreeCtrl::OnShowTextContent(wxCommandEvent& event)
     if (nodeIt == m_itemNodeMap.end())
         return;
 
-    wxXmlNode* node = nodeIt->second;
+    tinyxml2::XMLNode* node = nodeIt->second;
     if (!node)
         return;
 
     wxString textContent;
     
     // If it's a text node, get its content directly
-    if (node->GetType() == wxXML_TEXT_NODE)
+    tinyxml2::XMLText* textNode = node->ToText();
+    if (textNode)
     {
-        textContent = node->GetContent();
+        const char* textValue = textNode->Value();
+        if (textValue)
+        {
+            textContent = wxString::FromUTF8(textValue);
+        }
     }
     else
     {
         // For element nodes, get all text content from children
-        textContent = GetNodeTextContent(node);
+        tinyxml2::XMLElement* element = node->ToElement();
+        if (element)
+        {
+            textContent = GetNodeTextContent(element);
+        }
     }
 
     if (textContent.IsEmpty())

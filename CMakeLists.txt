@@ -15,7 +15,7 @@ include(FetchContent)
 FetchContent_Declare(
     wxWidgets
     GIT_REPOSITORY https://github.com/wxWidgets/wxWidgets.git
-    GIT_TAG v3.2.4
+    GIT_TAG v3.3.1
     GIT_SHALLOW TRUE
 )
 
@@ -25,6 +25,17 @@ set(wxBUILD_SAMPLES OFF CACHE BOOL "" FORCE)
 set(wxBUILD_TESTS OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(wxWidgets)
+
+# Fetch TinyXML-2
+FetchContent_Declare(
+    tinyxml2
+    GIT_REPOSITORY https://github.com/leethomason/tinyxml2.git
+    GIT_TAG 9.0.0
+    GIT_SHALLOW TRUE
+)
+
+# Configure TinyXML-2
+FetchContent_MakeAvailable(tinyxml2)
 
 # Platform-specific settings
 if(APPLE)
@@ -53,7 +64,7 @@ set(HEADERS
 # Create executable
 # On Windows, use WIN32 to link against WinMain instead of main
 if(WIN32)
-    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
+    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} app.manifest)
 else()
     add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 endif()
@@ -62,7 +73,6 @@ endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE
     wx::core
     wx::stc
-    wx::xml
     wx::adv
     wx::base
 )
@@ -72,18 +82,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# High DPI support on Windows
-if(WIN32)
-    # Set DPI awareness for Visual Studio generators
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        VS_DPI_AWARE "PerMonitorV2"
-    )
-    
-    # Embed manifest file for DPI awareness
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        VS_MANIFEST_FILE "${CMAKE_CURRENT_SOURCE_DIR}/app.manifest"
-    )
-endif()
+# Link TinyXML-2 and ensure include directories are set
+# TinyXML-2 target name when fetched via FetchContent
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    tinyxml2
+)
 
 # Platform-specific post-build steps
 if(WIN32 AND wxBUILD_SHARED)
