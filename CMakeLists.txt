@@ -104,9 +104,18 @@ add_custom_command(
 # Add generated file to sources
 list(APPEND SOURCES "${XRC_CPP_FILE}")
 
+# Windows resource file for application icon
+set(WIN_RESOURCE_FILE "${CMAKE_CURRENT_SOURCE_DIR}/resources/app.rc")
+
 # Create executable
 if(WIN32)
-    add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} app.manifest)
+    # Include resource file for Windows icon (only if icon.ico exists)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.ico")
+        add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} ${WIN_RESOURCE_FILE} app.manifest)
+    else()
+        add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS} app.manifest)
+        message(STATUS "Note: resources/icon.ico not found - building without application icon")
+    endif()
 elseif(APPLE)
     add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${SOURCES} ${HEADERS})
     set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -115,6 +124,16 @@ elseif(APPLE)
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.vibexml.xmlviewer"
     )
+    # Set icon for macOS bundle (if exists)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.icns")
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            MACOSX_BUNDLE_ICON_FILE "icon.icns"
+        )
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.icns" PROPERTIES
+            MACOSX_PACKAGE_LOCATION "Resources"
+        )
+        target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icon.icns")
+    endif()
 else()
     add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 endif()
@@ -139,3 +158,23 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     tinyxml2
 )
+
+# UPX compression for Windows Release builds
+if(WIN32)
+    find_program(UPX_EXECUTABLE upx)
+    if(UPX_EXECUTABLE)
+        message(STATUS "UPX found: ${UPX_EXECUTABLE}")
+        # Add post-build step to compress executable with UPX (Release only)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND $<$<CONFIG:Release>:${UPX_EXECUTABLE}>
+                    $<$<CONFIG:Release>:--best>
+                    $<$<CONFIG:Release>:--lzma>
+                    $<$<CONFIG:Release>:$<TARGET_FILE:${PROJECT_NAME}>>
+            COMMENT "Compressing executable with UPX..."
+            VERBATIM
+        )
+    else()
+        message(STATUS "UPX not found - executable will not be compressed")
+        message(STATUS "  Install UPX from: https://github.com/upx/upx/releases")
+    endif()
+endif()
