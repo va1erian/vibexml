@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=XML Viewer
+Comment=View and edit XML files with syntax highlighting
+Exec=xmlviewer %F
+Icon=xmlviewer
+Terminal=false
+Categories=Development;TextEditor;Utility;
+MimeType=application/xml;text/xml;
+Keywords=xml;viewer;editor;
+
