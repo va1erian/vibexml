@@ -31,6 +31,7 @@ public:
                 long style = wxTR_DEFAULT_STYLE | wxTR_HIDE_ROOT);
 
     bool LoadXmlFile(const wxString& filePath);
+    bool LoadXmlFromString(const wxString& xmlContent);
     int GetLineNumber(const wxTreeItemId& item) const;
 
 private:
@@ -40,6 +41,9 @@ private:
     void OnMouseMove(wxMouseEvent& event);
     void OnShowTextContent(wxCommandEvent& event);
     void OnItemExpanding(wxTreeEvent& event);
+    
+    // Build tree structure from the loaded XML document
+    void BuildTreeFromDocument();
     
     // Create a single tree item for an element (without children)
     wxTreeItemId CreateElementItem(tinyxml2::XMLElement* element, const wxTreeItemId& parent);

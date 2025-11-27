@@ -3,6 +3,7 @@
 
 #include <wx/wx.h>
 #include <wx/stc/stc.h>
+#include <tinyxml2.h>
 #include "EditorSettings.h"
 
 // Search result information
@@ -30,6 +31,9 @@ public:
     void SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord);
     void ClearSearch();
     void GotoLine(int lineNumber, bool highlight = false);
+    
+    // Format/beautify XML
+    bool FormatXml(int indentSpaces = 4);
     
     // Apply current settings from EditorSettings
     void ApplySettings();

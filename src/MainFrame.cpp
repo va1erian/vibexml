@@ -63,6 +63,8 @@ void MainFrame::CreateMenuBar()
     editMenu->Append(ID_FindNext, "Find &Next\tF3", "Find next occurrence");
     editMenu->Append(ID_FindPrevious, "Find &Previous\tShift+F3", "Find previous occurrence");
     editMenu->AppendSeparator();
+    editMenu->Append(ID_FormatXml, "Format &XML\tCtrl+Shift+F", "Auto-indent and beautify XML");
+    editMenu->AppendSeparator();
     editMenu->Append(ID_Settings, "&Settings...\tCtrl+,", "Configure editor appearance");
 
     // View menu
@@ -82,6 +84,7 @@ void MainFrame::CreateMenuBar()
     Bind(wxEVT_MENU, &MainFrame::OnFind, this, ID_Find);
     Bind(wxEVT_MENU, &MainFrame::OnFindNext, this, ID_FindNext);
     Bind(wxEVT_MENU, &MainFrame::OnFindPrevious, this, ID_FindPrevious);
+    Bind(wxEVT_MENU, &MainFrame::OnFormatXml, this, ID_FormatXml);
     Bind(wxEVT_MENU, &MainFrame::OnToggleTreePanel, this, ID_ToggleTree);
     Bind(wxEVT_MENU, &MainFrame::OnSettings, this, ID_Settings);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
@@ -173,6 +176,33 @@ void MainFrame::OnFindPrevious(wxCommandEvent& event)
     {
         SearchResult result = m_editorCtrl->FindPrevious();
         UpdateSearchStatus(result);
+    }
+}
+
+void MainFrame::OnFormatXml(wxCommandEvent& event)
+{
+    if (m_editorCtrl)
+    {
+        if (m_editorCtrl->FormatXml())
+        {
+            // Reload tree with the newly formatted content
+            if (m_treeCtrl)
+            {
+                wxString formattedContent = m_editorCtrl->GetText();
+                if (m_treeCtrl->LoadXmlFromString(formattedContent))
+                {
+                    SetStatusText("XML formatted successfully", 0);
+                }
+                else
+                {
+                    SetStatusText("XML formatted - tree reload failed", 0);
+                }
+            }
+            else
+            {
+                SetStatusText("XML formatted successfully", 0);
+            }
+        }
     }
 }
 

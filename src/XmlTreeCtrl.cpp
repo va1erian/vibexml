@@ -39,6 +39,45 @@ bool XmlTreeCtrl::LoadXmlFile(const wxString& filePath)
         return false;
     }
 
+    // Build the tree
+    BuildTreeFromDocument();
+
+    Thaw();
+    return true;
+}
+
+bool XmlTreeCtrl::LoadXmlFromString(const wxString& xmlContent)
+{
+    // Freeze to prevent UI updates
+    Freeze();
+    
+    DeleteAllItems();
+    m_itemLineMap.clear();
+    m_itemNodeMap.clear();
+    m_itemPopulated.clear();
+
+    // Parse XML with TinyXML-2
+    m_xmlDoc = std::make_unique<tinyxml2::XMLDocument>();
+    
+    // Convert wxString to UTF-8 for TinyXML-2
+    wxCharBuffer utf8Buffer = xmlContent.ToUTF8();
+    tinyxml2::XMLError error = m_xmlDoc->Parse(utf8Buffer.data());
+    
+    if (error != tinyxml2::XML_SUCCESS)
+    {
+        Thaw();
+        return false;
+    }
+
+    // Build the tree
+    BuildTreeFromDocument();
+
+    Thaw();
+    return true;
+}
+
+void XmlTreeCtrl::BuildTreeFromDocument()
+{
     // Create root item (hidden)
     m_rootItem = AddRoot("XML Document");
     m_itemPopulated[m_rootItem] = true; // Mark as populated since we'll add children now
@@ -61,9 +100,6 @@ bool XmlTreeCtrl::LoadXmlFile(const wxString& filePath)
         // Expand the hidden root to show the first level
         Expand(m_rootItem);
     }
-
-    Thaw();
-    return true;
 }
 
 wxTreeItemId XmlTreeCtrl::CreateElementItem(tinyxml2::XMLElement* element, const wxTreeItemId& parent)

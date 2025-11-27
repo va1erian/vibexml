@@ -526,6 +526,55 @@ void XmlEditorCtrl::ClearSearch()
     ClearHighlights();
 }
 
+bool XmlEditorCtrl::FormatXml(int indentSpaces)
+{
+    // Get the current XML content
+    wxString content = GetText();
+    if (content.IsEmpty())
+        return false;
+    
+    // Parse the XML
+    tinyxml2::XMLDocument doc;
+    wxCharBuffer utf8Content = content.ToUTF8();
+    tinyxml2::XMLError error = doc.Parse(utf8Content.data());
+    
+    if (error != tinyxml2::XML_SUCCESS)
+    {
+        wxMessageBox(
+            wxString::Format("Failed to parse XML: %s\n\nLine: %d", 
+                             doc.ErrorStr(), doc.ErrorLineNum()),
+            "XML Format Error", 
+            wxOK | wxICON_ERROR);
+        return false;
+    }
+    
+    // Use TinyXML-2's printer to format the document
+    tinyxml2::XMLPrinter printer;
+    doc.Print(&printer);
+    
+    // Get the formatted output
+    wxString formattedXml = wxString::FromUTF8(printer.CStr());
+    
+    // Store current position to try to restore it
+    int currentLine = LineFromPosition(GetCurrentPos());
+    
+    // Replace the content
+    SetReadOnly(false);
+    SetText(formattedXml);
+    SetReadOnly(true);
+    
+    // Try to go back to approximately the same position
+    if (currentLine < GetLineCount())
+    {
+        GotoLine(currentLine + 1, false);
+    }
+    
+    // Mark as modified (though we're read-only, this helps track state)
+    SetSavePoint();
+    
+    return true;
+}
+
 void XmlEditorCtrl::GotoLine(int lineNumber, bool highlight)
 {
     if (lineNumber < 1)

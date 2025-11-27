@@ -20,6 +20,7 @@ private:
     void OnFind(wxCommandEvent& event);
     void OnFindNext(wxCommandEvent& event);
     void OnFindPrevious(wxCommandEvent& event);
+    void OnFormatXml(wxCommandEvent& event);
     void OnToggleTreePanel(wxCommandEvent& event);
     void OnRecentFile(wxCommandEvent& event);
     void OnTreeItemSelected(wxTreeEvent& event);
@@ -47,6 +48,7 @@ private:
         ID_Find = wxID_FIND,
         ID_FindNext = 1001,
         ID_FindPrevious = 1002,
+        ID_FormatXml = 1003,
         ID_ToggleTree = 1000,
         ID_RecentFileBase = 2000,
         ID_Settings = 3000
