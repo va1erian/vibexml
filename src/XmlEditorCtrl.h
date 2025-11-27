@@ -4,6 +4,7 @@
 #include <wx/wx.h>
 #include <wx/stc/stc.h>
 #include <tinyxml2.h>
+#include <functional>
 #include "EditorSettings.h"
 
 // Search result information
@@ -27,6 +28,10 @@ public:
 
     bool LoadFile(const wxString& filePath);
     bool LoadFromString(const wxString& content);
+    
+    // Load with progress callback for large files
+    typedef std::function<bool(int percent, const wxString& status)> LoadProgressCallback;
+    bool LoadFromStringWithProgress(const wxString& content, LoadProgressCallback progressCallback);
     SearchResult FindNext();
     SearchResult FindPrevious();
     void SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord);

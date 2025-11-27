@@ -216,25 +216,92 @@ bool XmlEditorCtrl::LoadFile(const wxString& filePath)
 
 bool XmlEditorCtrl::LoadFromString(const wxString& content)
 {
+    // Use the progress version with a null callback for simple loading
+    return LoadFromStringWithProgress(content, nullptr);
+}
+
+bool XmlEditorCtrl::LoadFromStringWithProgress(const wxString& content, LoadProgressCallback progressCallback)
+{
     SetReadOnly(false);
     
-    // For very large content, disable styling temporarily for faster loading
+    // For very large content, use chunked loading
     bool largeFile = content.Length() > 10 * 1024 * 1024;  // 10 MB
     
-    if (largeFile)
+    // Disable lexer for faster loading
+    SetLexer(wxSTC_LEX_NULL);
+    
+    // Freeze display updates
+    Freeze();
+    
+    // Clear existing content
+    ClearAll();
+    
+    if (largeFile && progressCallback)
     {
-        // Disable lexer temporarily for faster text insertion
-        SetLexer(wxSTC_LEX_NULL);
+        // Chunked loading for large files with progress updates
+        const size_t CHUNK_SIZE = 5 * 1024 * 1024;  // 5 MB chunks
+        size_t totalLen = content.Length();
+        size_t pos = 0;
+        int lastPercent = 0;
+        
+        // Convert to UTF-8 once
+        wxCharBuffer utf8 = content.ToUTF8();
+        const char* data = utf8.data();
+        size_t utf8Len = strlen(data);
+        
+        while (pos < utf8Len)
+        {
+            size_t chunkLen = std::min(CHUNK_SIZE, utf8Len - pos);
+            
+            // Add this chunk
+            AddTextRaw(data + pos, chunkLen);
+            pos += chunkLen;
+            
+            // Calculate and report progress
+            int percent = static_cast<int>((pos * 100) / utf8Len);
+            if (percent > lastPercent)
+            {
+                lastPercent = percent;
+                
+                // Report progress and check for cancel
+                if (!progressCallback(percent, wxString::Format("Loading editor: %d%%", percent)))
+                {
+                    // Cancelled
+                    Thaw();
+                    SetReadOnly(true);
+                    return false;
+                }
+                
+                // Allow UI to update
+                wxYield();
+            }
+        }
+    }
+    else
+    {
+        // Simple loading for smaller files or no callback
+        SetText(content);
     }
     
-    SetText(content);
+    // Unfreeze display
+    Thaw();
     
+    // Re-enable XML lexer
+    SetLexer(wxSTC_LEX_XML);
+    
+    // Only colorize visible portion for performance
     if (largeFile)
     {
-        // Re-enable XML lexer
-        SetLexer(wxSTC_LEX_XML);
-        // Only colorize visible portion initially
-        Colourise(0, GetEndStyled());
+        // Just colorize the first visible portion
+        int firstVisible = GetFirstVisibleLine();
+        int linesOnScreen = LinesOnScreen();
+        int startPos = PositionFromLine(firstVisible);
+        int endPos = PositionFromLine(firstVisible + linesOnScreen + 1);
+        Colourise(startPos, endPos);
+    }
+    else
+    {
+        Colourise(0, GetLength());
     }
     
     SetReadOnly(true);

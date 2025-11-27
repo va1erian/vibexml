@@ -272,45 +272,39 @@ void MainFrame::LoadXmlFile(const wxString& filePath)
     wxFileName fileName(filePath);
     wxULongLong fileSize = fileName.GetSize();
     
-    // Use progress dialog for files larger than 10 MB
-    const wxULongLong LARGE_FILE_THRESHOLD(10 * 1024 * 1024);
+    // Threshold for using progress dialogs
+    const wxULongLong LARGE_FILE_THRESHOLD(10 * 1024 * 1024);  // 10 MB
     
     wxString content;
     double loadTime = 0;
     
     if (fileSize > LARGE_FILE_THRESHOLD)
     {
-        // Use progress dialog for large files
-        FileLoadProgressDialog loader(this, filePath);
-        if (!loader.Load())
+        // Step 1: Load file with progress dialog
+        FileLoadResult result;
+        if (!FileLoader::LoadFile(this, filePath, result))
         {
-            if (!loader.GetResult().errorMessage.IsEmpty() && 
-                loader.GetResult().errorMessage != "Loading cancelled")
+            if (!result.cancelled && !result.errorMessage.IsEmpty())
             {
-                wxMessageBox("Failed to load file: " + loader.GetResult().errorMessage, 
+                wxMessageBox("Failed to load file: " + result.errorMessage, 
                              "Error", wxOK | wxICON_ERROR);
             }
             return;
         }
         
-        content = loader.GetContent();
-        loadTime = loader.GetResult().loadTimeSeconds;
+        content = result.content;
+        loadTime = result.loadTimeSeconds;
         
-        // Show busy cursor while setting content
-        wxBusyCursor wait;
-        SetStatusText("Setting editor content...", 0);
-        wxYield();
-        
-        // Load content into editor
-        if (!m_editorCtrl->LoadFromString(content))
+        // Step 2: Load into editor with progress dialog
+        if (!FileLoader::LoadIntoEditor(this, m_editorCtrl, content))
         {
-            wxMessageBox("Failed to set editor content", "Error", wxOK | wxICON_ERROR);
+            // User cancelled
             return;
         }
     }
     else
     {
-        // For smaller files, use the simple direct load
+        // For smaller files, use simple direct load
         if (!m_editorCtrl->LoadFile(filePath))
         {
             wxMessageBox("Failed to load file: " + filePath, "Error", wxOK | wxICON_ERROR);
@@ -319,15 +313,13 @@ void MainFrame::LoadXmlFile(const wxString& filePath)
         content = m_editorCtrl->GetText();
     }
     
-    // Build tree - children load asynchronously in background
+    // Step 3: Build tree - children load asynchronously in background
+    SetStatusText("Building tree view...", 0);
+    
+    if (!m_treeCtrl->LoadFromString(content))
     {
-        SetStatusText("Building tree view...", 0);
-        
-        if (!m_treeCtrl->LoadFromString(content))
-        {
-            wxMessageBox("Failed to parse XML file: " + filePath, "Error", wxOK | wxICON_ERROR);
-            return;
-        }
+        wxMessageBox("Failed to parse XML file: " + filePath, "Error", wxOK | wxICON_ERROR);
+        return;
     }
 
     m_currentFilePath = filePath;

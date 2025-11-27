@@ -9,75 +9,56 @@
 #include <atomic>
 #include <functional>
 
-// Event sent when loading progress updates
-wxDECLARE_EVENT(wxEVT_FILE_LOAD_PROGRESS, wxThreadEvent);
-// Event sent when loading completes
-wxDECLARE_EVENT(wxEVT_FILE_LOAD_COMPLETE, wxThreadEvent);
-// Event sent when loading fails
-wxDECLARE_EVENT(wxEVT_FILE_LOAD_ERROR, wxThreadEvent);
+// Progress callback: returns false to cancel
+using ProgressCallback = std::function<bool(int percent, const wxString& status)>;
 
 // Result of file loading
 struct FileLoadResult
 {
-    bool success;
+    bool success = false;
+    bool cancelled = false;
     wxString content;
     wxString errorMessage;
     wxULongLong fileSize;
-    double loadTimeSeconds;
+    double loadTimeSeconds = 0;
 };
 
-// Worker thread for loading large files
-class FileLoaderThread : public wxThread
+// Load a file with progress reporting
+// Shows a wxProgressDialog and loads the file in a background thread
+class FileLoader
 {
 public:
-    FileLoaderThread(wxEvtHandler* handler, const wxString& filePath);
+    // Load file with progress dialog
+    // Returns true if successful, false if cancelled or error
+    static bool LoadFile(wxWindow* parent, 
+                         const wxString& filePath,
+                         FileLoadResult& result);
     
-    void RequestCancel() { m_cancelled = true; }
-    bool IsCancelled() const { return m_cancelled; }
+    // Load string content into an editor with progress dialog
+    // Uses chunked loading to keep UI responsive
+    static bool LoadIntoEditor(wxWindow* parent,
+                               class XmlEditorCtrl* editor,
+                               const wxString& content);
 
-protected:
-    virtual ExitCode Entry() override;
-
-private:
-    wxEvtHandler* m_handler;
-    wxString m_filePath;
-    std::atomic<bool> m_cancelled;
+    // Background thread for file reading
+    class ReaderThread : public wxThread
+    {
+    public:
+        ReaderThread(wxEvtHandler* handler, const wxString& filePath);
+        void RequestCancel() { m_cancelled = true; }
+        
+    protected:
+        virtual ExitCode Entry() override;
+        
+    private:
+        wxEvtHandler* m_handler;
+        wxString m_filePath;
+        std::atomic<bool> m_cancelled{false};
+    };
 };
 
-// Dialog that shows loading progress
-class FileLoadProgressDialog : public wxDialog
-{
-public:
-    FileLoadProgressDialog(wxWindow* parent, const wxString& filePath);
-    ~FileLoadProgressDialog();
-    
-    // Start loading and show dialog (returns when done or cancelled)
-    bool Load();
-    
-    // Get the loaded content (only valid after successful Load())
-    const wxString& GetContent() const { return m_result.content; }
-    const FileLoadResult& GetResult() const { return m_result; }
-
-private:
-    void OnProgress(wxThreadEvent& event);
-    void OnComplete(wxThreadEvent& event);
-    void OnError(wxThreadEvent& event);
-    void OnCancel(wxCommandEvent& event);
-    void OnClose(wxCloseEvent& event);
-    
-    void UpdateProgress(int percent, const wxString& message);
-    
-    wxString m_filePath;
-    wxGauge* m_gauge;
-    wxStaticText* m_statusText;
-    wxStaticText* m_detailText;
-    wxButton* m_cancelButton;
-    
-    FileLoaderThread* m_thread;
-    FileLoadResult m_result;
-    bool m_loading;
-    wxStopWatch m_stopWatch;
-};
+// Events for background file loading
+wxDECLARE_EVENT(wxEVT_FILE_PROGRESS, wxThreadEvent);
+wxDECLARE_EVENT(wxEVT_FILE_COMPLETE, wxThreadEvent);
 
 #endif // FILELOADER_H
-
