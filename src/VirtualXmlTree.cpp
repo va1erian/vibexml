@@ -57,7 +57,7 @@ VirtualXmlTreeModel::~VirtualXmlTreeModel()
 {
 }
 
-void VirtualXmlTreeModel::SetContent(const wxString& content, XmlStreamParser* parser)
+void VirtualXmlTreeModel::SetContent(const wxString& content, std::shared_ptr<XmlStreamParser> parser)
 {
     m_content = content;
     m_parser = parser;
@@ -97,7 +97,7 @@ void VirtualXmlTreeModel::AddChildrenToNode(VirtualTreeNode* node, const std::ve
     wxDataViewItem parentItem(node);
     
     // Limit children to prevent memory issues
-    const size_t MAX_CHILDREN = 10000;
+    const size_t MAX_CHILDREN = 1000000;
     size_t count = std::min(children.size(), MAX_CHILDREN);
     
     for (size_t i = 0; i < count; ++i)
@@ -145,15 +145,21 @@ void VirtualXmlTreeModel::AddChildrenToNode(VirtualTreeNode* node, const std::ve
         ItemAdded(parentItem, wxDataViewItem(childPtr));
     }
     
-    // Add indicator if we truncated
+    // Add interactive "load more" placeholder if we truncated
     if (children.size() > MAX_CHILDREN)
     {
+        size_t remainingCount = children.size() - MAX_CHILDREN;
+        
         auto moreNode = std::make_unique<VirtualTreeNode>();
-        moreNode->label = wxString::Format("... and %zu more items", 
-                                            children.size() - MAX_CHILDREN);
+        moreNode->label = wxString::Format("[ Double-click to load %zu more items ]", remainingCount);
         moreNode->lineNumber = 0;
         moreNode->hasChildren = false;
         moreNode->childrenLoaded = true;
+        moreNode->isMorePlaceholder = true;
+        moreNode->moreStartIndex = MAX_CHILDREN;
+        moreNode->moreTotalCount = children.size();
+        moreNode->startPos = node->startPos;  // Store parent's range for re-parsing
+        moreNode->endPos = node->endPos;
         moreNode->parent = node;
         
         VirtualTreeNode* morePtr = moreNode.get();
@@ -179,6 +185,83 @@ VirtualTreeNode* VirtualXmlTreeModel::GetNode(const wxDataViewItem& item) const
     if (!item.IsOk())
         return m_rootNode.get();
     return static_cast<VirtualTreeNode*>(item.GetID());
+}
+
+// Helper to check if a node is a placeholder
+static bool IsPlaceholderNode(VirtualTreeNode* node)
+{
+    if (!node)
+        return true;
+    return node->isMorePlaceholder ||
+           node->label.StartsWith("Loading") || 
+           node->label.StartsWith("...") ||
+           node->label.StartsWith("[") ||
+           node->lineNumber == 0;
+}
+
+// Helper to check if a node has a placeholder sibling (indicating unloaded data)
+static bool HasPlaceholderSibling(VirtualTreeNode* node)
+{
+    if (!node || !node->parent)
+        return false;
+    
+    for (const auto& sibling : node->parent->children)
+    {
+        if (sibling.get() != node && IsPlaceholderNode(sibling.get()))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper to recursively find the best matching node for a line
+// Only searches through already-loaded nodes
+static VirtualTreeNode* FindNodeByLineRecursive(VirtualTreeNode* node, int lineNumber, VirtualTreeNode* bestMatch)
+{
+    if (!node || IsPlaceholderNode(node))
+        return bestMatch;
+    
+    // Check if this node is a better match (closer to but not after the target line)
+    if (node->lineNumber > 0 && node->lineNumber <= lineNumber)
+    {
+        if (!bestMatch || node->lineNumber > bestMatch->lineNumber)
+        {
+            bestMatch = node;
+        }
+    }
+    
+    // Only search children if they've been loaded
+    if (node->childrenLoaded)
+    {
+        for (const auto& child : node->children)
+        {
+            if (!IsPlaceholderNode(child.get()))
+            {
+                bestMatch = FindNodeByLineRecursive(child.get(), lineNumber, bestMatch);
+            }
+        }
+    }
+    
+    return bestMatch;
+}
+
+VirtualTreeNode* VirtualXmlTreeModel::FindNodeByLine(int lineNumber) const
+{
+    if (!m_rootNode || lineNumber <= 0)
+        return nullptr;
+    
+    // Search through all children of the virtual root
+    VirtualTreeNode* bestMatch = nullptr;
+    for (const auto& root : m_rootNode->children)
+    {
+        if (!IsPlaceholderNode(root.get()))
+        {
+            bestMatch = FindNodeByLineRecursive(root.get(), lineNumber, bestMatch);
+        }
+    }
+    
+    return bestMatch;
 }
 
 void VirtualXmlTreeModel::GetValue(wxVariant& variant, const wxDataViewItem& item, unsigned int col) const
@@ -257,13 +340,13 @@ VirtualXmlTree::VirtualXmlTree(wxWindow* parent, wxWindowID id,
 bool VirtualXmlTree::LoadFromString(const wxString& content)
 {
     m_content = content;
-    m_parser = std::make_unique<XmlStreamParser>();
+    m_parser = std::make_shared<XmlStreamParser>();
     m_parser->SetSource(m_content);
     
     if (!m_parser->IsValid())
         return false;
     
-    m_model->SetContent(m_content, m_parser.get());
+    m_model->SetContent(m_content, m_parser);
     
     // Get top-level elements
     std::vector<XmlElementInfo> topElements = m_parser->GetTopLevelElements();
@@ -303,10 +386,10 @@ bool VirtualXmlTree::LoadWithPreloadedData(const wxString& content,
                                             const std::vector<XmlElementInfo>& firstLevelChildren)
 {
     m_content = content;
-    m_parser = std::make_unique<XmlStreamParser>();
+    m_parser = std::make_shared<XmlStreamParser>();
     m_parser->SetSource(m_content);
     
-    m_model->SetContent(m_content, m_parser.get());
+    m_model->SetContent(m_content, m_parser);
     
     // Create root nodes
     std::vector<std::unique_ptr<VirtualTreeNode>> roots;
@@ -404,6 +487,87 @@ int VirtualXmlTree::GetSelectedLineNumber() const
     
     VirtualTreeNode* node = m_model->GetNode(item);
     return node ? node->lineNumber : 0;
+}
+
+void VirtualXmlTree::ExpandToLine(int lineNumber)
+{
+    if (lineNumber <= 0 || !m_model)
+        return;
+    
+    // Find the node closest to this line (only searches loaded nodes)
+    VirtualTreeNode* node = m_model->FindNodeByLine(lineNumber);
+    if (!node)
+    {
+        // No loaded node found - the element is likely in an unloaded region
+        // Don't try to navigate as it would just show placeholders
+        return;
+    }
+    
+    // Check if the found node has placeholder siblings (indicating incomplete data)
+    // If so, don't scroll as it would reveal the ugly placeholder
+    bool hasPlaceholder = HasPlaceholderSibling(node);
+    
+    // Check if the found node is reasonably close to the target line
+    // If not, it means the actual target is in an unloaded region
+    int lineDiff = lineNumber - node->lineNumber;
+    if (lineDiff > 1000)
+    {
+        // The closest loaded node is too far - target is probably in unloaded area
+        // Just select without scrolling
+        wxDataViewItem targetItem(node);
+        if (targetItem.IsOk())
+        {
+            Select(targetItem);
+        }
+        return;
+    }
+    
+    // Build path from root to this node
+    std::vector<VirtualTreeNode*> path;
+    VirtualTreeNode* current = node;
+    while (current && current->parent)  // Stop at virtual root
+    {
+        path.push_back(current);
+        current = current->parent;
+    }
+    
+    // Expand from root to parent of target (reverse order)
+    // Skip the last item (the target itself)
+    for (int i = static_cast<int>(path.size()) - 1; i > 0; --i)
+    {
+        VirtualTreeNode* pathNode = path[i];
+        
+        // Skip if this is a placeholder node
+        if (IsPlaceholderNode(pathNode))
+        {
+            continue;
+        }
+        
+        wxDataViewItem item(pathNode);
+        if (item.IsOk() && !IsExpanded(item))
+        {
+            // Only expand if children are already loaded
+            // (don't trigger async loading here as it would freeze)
+            if (pathNode->childrenLoaded)
+            {
+                Expand(item);
+            }
+        }
+    }
+    
+    // Select the target node
+    wxDataViewItem targetItem(node);
+    if (targetItem.IsOk())
+    {
+        Select(targetItem);
+        
+        // Only scroll to make visible if there are no placeholder siblings
+        // This prevents the tree from scrolling to show "... and X more items"
+        if (!hasPlaceholder)
+        {
+            EnsureVisible(targetItem);
+        }
+    }
 }
 
 void VirtualXmlTree::OnSelectionChanged(wxDataViewEvent& event)
@@ -511,6 +675,17 @@ void VirtualXmlTree::OnItemActivated(wxDataViewEvent& event)
     if (!item.IsOk())
         return;
     
+    VirtualTreeNode* node = m_model->GetNode(item);
+    if (!node)
+        return;
+    
+    // Check if this is a "load more" placeholder
+    if (node->isMorePlaceholder && node->parent)
+    {
+        LoadMoreChildren(node);
+        return;
+    }
+    
     // Toggle expand/collapse on double-click
     if (IsExpanded(item))
     {
@@ -519,6 +694,106 @@ void VirtualXmlTree::OnItemActivated(wxDataViewEvent& event)
     else
     {
         Expand(item);
+    }
+}
+
+void VirtualXmlTree::LoadMoreChildren(VirtualTreeNode* placeholderNode)
+{
+    if (!placeholderNode || !placeholderNode->parent || !m_parser)
+        return;
+    
+    VirtualTreeNode* parentNode = placeholderNode->parent;
+    
+    // Show busy cursor
+    wxBusyCursor wait;
+    
+    // Update placeholder to show loading
+    wxString originalLabel = placeholderNode->label;
+    placeholderNode->label = "Loading more items...";
+    wxDataViewItem placeholderItem(placeholderNode);
+    m_model->ItemChanged(placeholderItem);
+    wxYield();
+    
+    // Re-parse children from the parent's range
+    std::vector<XmlElementInfo> allChildren = m_parser->GetChildElements(
+        parentNode->startPos, parentNode->endPos);
+    
+    // Calculate how many we need to load
+    size_t startIndex = placeholderNode->moreStartIndex;
+    size_t totalCount = allChildren.size();
+    const size_t BATCH_SIZE = 1000000;
+    size_t endIndex = std::min(startIndex + BATCH_SIZE, totalCount);
+    
+    // Remove the placeholder first
+    wxDataViewItem parentItem(parentNode);
+    m_model->ItemDeleted(parentItem, placeholderItem);
+    
+    // Find and remove placeholder from parent's children
+    auto it = std::find_if(parentNode->children.begin(), parentNode->children.end(),
+        [placeholderNode](const std::unique_ptr<VirtualTreeNode>& child) {
+            return child.get() == placeholderNode;
+        });
+    if (it != parentNode->children.end())
+    {
+        parentNode->children.erase(it);
+    }
+    
+    // Add the new batch of children
+    for (size_t i = startIndex; i < endIndex && i < allChildren.size(); ++i)
+    {
+        const auto& info = allChildren[i];
+        
+        auto child = std::make_unique<VirtualTreeNode>();
+        
+        // Build label (truncate if too long)
+        wxString label = m_content.Mid(info.startPos, 
+                                        std::min(info.endPos - info.startPos, static_cast<size_t>(200)));
+        // Truncate at first newline
+        size_t newlinePos = label.find('\n');
+        if (newlinePos != wxString::npos)
+        {
+            label = label.Left(newlinePos) + "...";
+        }
+        
+        child->label = label;
+        child->lineNumber = info.startLine;
+        child->startPos = info.startPos;
+        child->endPos = info.endPos;
+        child->hasChildren = info.hasChildren && !info.isSelfClosing;
+        child->childrenLoaded = false;
+        child->parent = parentNode;
+        
+        VirtualTreeNode* childPtr = child.get();
+        parentNode->children.push_back(std::move(child));
+        m_model->ItemAdded(parentItem, wxDataViewItem(childPtr));
+        
+        // Yield periodically to keep UI responsive
+        if ((i - startIndex) % 1000 == 0)
+        {
+            wxYield();
+        }
+    }
+    
+    // If there are still more items, add a new placeholder
+    if (endIndex < totalCount)
+    {
+        size_t remainingCount = totalCount - endIndex;
+        
+        auto moreNode = std::make_unique<VirtualTreeNode>();
+        moreNode->label = wxString::Format("[ Double-click to load %zu more items ]", remainingCount);
+        moreNode->lineNumber = 0;
+        moreNode->hasChildren = false;
+        moreNode->childrenLoaded = true;
+        moreNode->isMorePlaceholder = true;
+        moreNode->moreStartIndex = endIndex;
+        moreNode->moreTotalCount = totalCount;
+        moreNode->startPos = parentNode->startPos;
+        moreNode->endPos = parentNode->endPos;
+        moreNode->parent = parentNode;
+        
+        VirtualTreeNode* morePtr = moreNode.get();
+        parentNode->children.push_back(std::move(moreNode));
+        m_model->ItemAdded(parentItem, wxDataViewItem(morePtr));
     }
 }
 

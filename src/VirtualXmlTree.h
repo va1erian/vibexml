@@ -29,11 +29,16 @@ struct VirtualTreeNode
     size_t endPos;               // End position
     bool hasChildren;            // Can be expanded
     bool childrenLoaded;         // Children have been fetched
+    bool isMorePlaceholder;      // True if this is a "load more" placeholder
+    size_t moreStartIndex;       // For placeholder: index to start loading from
+    size_t moreTotalCount;       // For placeholder: total count of items
     VirtualTreeNode* parent;     // Parent node (null for root)
     std::vector<std::unique_ptr<VirtualTreeNode>> children;
     
     VirtualTreeNode() : lineNumber(0), startPos(0), endPos(0), 
-                        hasChildren(false), childrenLoaded(false), parent(nullptr) {}
+                        hasChildren(false), childrenLoaded(false),
+                        isMorePlaceholder(false), moreStartIndex(0), moreTotalCount(0),
+                        parent(nullptr) {}
 };
 
 // Result of async child loading
@@ -80,6 +85,9 @@ public:
     // Get line number for selected item
     int GetSelectedLineNumber() const;
     
+    // Expand tree to show the node containing a specific line
+    void ExpandToLine(int lineNumber);
+    
     // Get the model
     VirtualXmlTreeModel* GetModel() const { return m_model; }
 
@@ -93,13 +101,14 @@ private:
     void OnContextMenu(wxDataViewEvent& event);
     
     void StartChildLoading(VirtualTreeNode* node);
+    void LoadMoreChildren(VirtualTreeNode* placeholderNode);
     void AddLoadingPlaceholder(VirtualTreeNode* node);
     void RemoveLoadingPlaceholder(VirtualTreeNode* node);
     void UpdateBackgroundCursor();
     
     VirtualXmlTreeModel* m_model;
     wxString m_content;
-    std::unique_ptr<XmlStreamParser> m_parser;
+    std::shared_ptr<XmlStreamParser> m_parser;
     
     // Track nodes being loaded to prevent duplicate loads
     std::unordered_set<VirtualTreeNode*> m_loadingNodes;
@@ -117,8 +126,8 @@ public:
     VirtualXmlTreeModel();
     virtual ~VirtualXmlTreeModel();
     
-    // Set content and parser
-    void SetContent(const wxString& content, XmlStreamParser* parser);
+    // Set content and parser (shared ownership)
+    void SetContent(const wxString& content, std::shared_ptr<XmlStreamParser> parser);
     
     // Set root nodes
     void SetRootNodes(std::vector<std::unique_ptr<VirtualTreeNode>> roots);
@@ -131,6 +140,9 @@ public:
     
     // Get node from item
     VirtualTreeNode* GetNode(const wxDataViewItem& item) const;
+    
+    // Find the node closest to a given line number
+    VirtualTreeNode* FindNodeByLine(int lineNumber) const;
     
     // wxDataViewModel interface
     virtual unsigned int GetColumnCount() const override { return 1; }
@@ -148,7 +160,7 @@ public:
 private:
     std::unique_ptr<VirtualTreeNode> m_rootNode;
     wxString m_content;
-    XmlStreamParser* m_parser;
+    std::shared_ptr<XmlStreamParser> m_parser;  // Shared with VirtualXmlTree
 };
 
 #endif // VIRTUALXMLTREE_H

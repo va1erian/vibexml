@@ -4,9 +4,12 @@
 #include <wx/wx.h>
 #include <wx/splitter.h>
 #include <wx/menu.h>
+#include <memory>
 #include "VirtualXmlTree.h"
 #include "XmlEditorCtrl.h"
 #include "RecentFiles.h"
+
+class SearchDialog;
 
 class MainFrame : public wxFrame
 {
@@ -34,12 +37,13 @@ private:
     void CreateMenuBar();
     void CreateStatusBar();
 
-    wxSplitterWindow* m_splitter;
-    VirtualXmlTree* m_treeCtrl;
-    XmlEditorCtrl* m_editorCtrl;
-    RecentFiles* m_recentFiles;
-    wxMenu* m_recentFilesMenu;
+    wxSplitterWindow* m_splitter;            // Owned by wxWidgets parent-child
+    VirtualXmlTree* m_treeCtrl;              // Owned by wxWidgets parent-child
+    XmlEditorCtrl* m_editorCtrl;             // Owned by wxWidgets parent-child
+    std::unique_ptr<RecentFiles> m_recentFiles;
+    wxMenu* m_recentFilesMenu;               // Owned by wxWidgets menu hierarchy
     wxString m_currentFilePath;
+    std::unique_ptr<SearchDialog> m_searchDialog;
 
     enum
     {

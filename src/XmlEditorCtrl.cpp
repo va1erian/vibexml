@@ -370,8 +370,14 @@ void XmlEditorCtrl::HighlightAllMatches()
     
     SetIndicatorCurrent(INDICATOR_SEARCH);
     
-    // Find and highlight all matches
-    while (pos < docLength)
+    // For very large documents, limit highlighting to prevent UI freeze
+    const int MAX_HIGHLIGHTS = 10000;
+    const int YIELD_INTERVAL = 500;  // Yield every N matches
+    int highlightCount = 0;
+    int yieldCounter = 0;
+    
+    // Find and highlight matches with periodic yields
+    while (pos < docLength && highlightCount < MAX_HIGHLIGHTS)
     {
         int foundPos = FindText(pos, docLength, m_searchText, flags);
         if (foundPos == -1)
@@ -380,6 +386,15 @@ void XmlEditorCtrl::HighlightAllMatches()
         // Highlight this match
         IndicatorFillRange(foundPos, searchLen);
         pos = foundPos + searchLen;
+        highlightCount++;
+        yieldCounter++;
+        
+        // Yield periodically to keep UI responsive
+        if (yieldCounter >= YIELD_INTERVAL)
+        {
+            yieldCounter = 0;
+            wxYield();
+        }
     }
 }
 
@@ -399,7 +414,12 @@ int XmlEditorCtrl::CountMatches()
     int docLength = GetLength();
     int searchLen = m_searchText.Length();
     
-    while (pos < docLength)
+    // For very large documents, limit counting to prevent UI freeze
+    const int MAX_COUNT = 100000;
+    const int YIELD_INTERVAL = 1000;  // Yield every N matches
+    int yieldCounter = 0;
+    
+    while (pos < docLength && count < MAX_COUNT)
     {
         int foundPos = FindText(pos, docLength, m_searchText, flags);
         if (foundPos == -1)
@@ -407,6 +427,20 @@ int XmlEditorCtrl::CountMatches()
         
         count++;
         pos = foundPos + searchLen;
+        yieldCounter++;
+        
+        // Yield periodically to keep UI responsive
+        if (yieldCounter >= YIELD_INTERVAL)
+        {
+            yieldCounter = 0;
+            wxYield();
+        }
+    }
+    
+    // If we hit the limit, indicate there are more
+    if (count >= MAX_COUNT)
+    {
+        return -count;  // Negative indicates "at least this many"
     }
     
     return count;

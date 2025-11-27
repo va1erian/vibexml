@@ -34,7 +34,7 @@ MainFrame::MainFrame()
     m_splitter->SetMinimumPaneSize(200);
 
     // Initialize recent files manager
-    m_recentFiles = new RecentFiles();
+    m_recentFiles = std::make_unique<RecentFiles>();
     UpdateRecentFilesMenu();
 
     // Set status bar text
@@ -43,7 +43,7 @@ MainFrame::MainFrame()
 
 MainFrame::~MainFrame()
 {
-    delete m_recentFiles;
+    // Smart pointers clean up automatically
 }
 
 void MainFrame::CreateMenuBar()
@@ -143,31 +143,32 @@ void MainFrame::OnExit(wxCommandEvent& event)
 
 void MainFrame::OnFind(wxCommandEvent& event)
 {
-    SearchDialog dlg(this, m_editorCtrl);
-    dlg.ShowModal();
+    // Create search dialog if it doesn't exist
+    if (!m_searchDialog)
+    {
+        m_searchDialog = std::make_unique<SearchDialog>(this, m_editorCtrl, m_treeCtrl);
+    }
     
-    // Update status bar with current match info after dialog closes
-    if (m_editorCtrl && m_editorCtrl->GetMatchCount() > 0)
-    {
-        SearchResult result;
-        result.found = true;
-        result.wrapped = false;
-        result.matchIndex = m_editorCtrl->GetCurrentMatchIndex();
-        result.totalMatches = m_editorCtrl->GetMatchCount();
-        UpdateSearchStatus(result);
-    }
-    else
-    {
-        GetStatusBar()->SetStatusText("", 1);
-    }
+    // Show and raise the dialog (non-modal)
+    m_searchDialog->Show(true);
+    m_searchDialog->Raise();
+    m_searchDialog->SetFocus();
 }
 
 void MainFrame::OnFindNext(wxCommandEvent& event)
 {
     if (m_editorCtrl)
     {
+        wxBusyCursor wait;
         SearchResult result = m_editorCtrl->FindNext();
         UpdateSearchStatus(result);
+        
+        // Expand tree to the found match
+        if (result.found && m_treeCtrl)
+        {
+            int currentLine = m_editorCtrl->LineFromPosition(m_editorCtrl->GetCurrentPos()) + 1;
+            m_treeCtrl->ExpandToLine(currentLine);
+        }
     }
 }
 
@@ -175,8 +176,16 @@ void MainFrame::OnFindPrevious(wxCommandEvent& event)
 {
     if (m_editorCtrl)
     {
+        wxBusyCursor wait;
         SearchResult result = m_editorCtrl->FindPrevious();
         UpdateSearchStatus(result);
+        
+        // Expand tree to the found match
+        if (result.found && m_treeCtrl)
+        {
+            int currentLine = m_editorCtrl->LineFromPosition(m_editorCtrl->GetCurrentPos()) + 1;
+            m_treeCtrl->ExpandToLine(currentLine);
+        }
     }
 }
 
@@ -269,6 +278,13 @@ void MainFrame::OnClose(wxCloseEvent& event)
     if (m_recentFiles)
     {
         m_recentFiles->Save();
+    }
+    
+    // Reset search dialog (releases ownership, wxWidgets destroys the window)
+    if (m_searchDialog)
+    {
+        m_searchDialog->Destroy();
+        m_searchDialog.release();  // Release without deleting (Destroy handles it)
     }
     
     event.Skip();
