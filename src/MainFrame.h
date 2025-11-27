@@ -19,11 +19,14 @@ private:
     void OnExit(wxCommandEvent& event);
     void OnFind(wxCommandEvent& event);
     void OnFindNext(wxCommandEvent& event);
+    void OnFindPrevious(wxCommandEvent& event);
     void OnToggleTreePanel(wxCommandEvent& event);
     void OnRecentFile(wxCommandEvent& event);
     void OnTreeItemSelected(wxTreeEvent& event);
     void OnClose(wxCloseEvent& event);
     void OnSettings(wxCommandEvent& event);
+    
+    void UpdateSearchStatus(const SearchResult& result);
 
     void LoadXmlFile(const wxString& filePath);
     void UpdateRecentFilesMenu();
@@ -43,6 +46,7 @@ private:
         ID_Exit = wxID_EXIT,
         ID_Find = wxID_FIND,
         ID_FindNext = 1001,
+        ID_FindPrevious = 1002,
         ID_ToggleTree = 1000,
         ID_RecentFileBase = 2000,
         ID_Settings = 3000

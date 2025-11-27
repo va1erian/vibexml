@@ -6,9 +6,12 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
     : wxStyledTextCtrl(parent, id, pos, size, style),
       m_caseSensitive(false),
       m_wholeWord(false),
-      m_lastSearchPos(0)
+      m_lastSearchPos(0),
+      m_matchCount(0),
+      m_currentMatchIndex(0)
 {
     SetupXmlLexer();
+    SetupIndicators();
     
     // Enable line numbers
     SetMarginType(0, wxSTC_MARGIN_NUMBER);
@@ -50,6 +53,23 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
 void XmlEditorCtrl::SetupXmlLexer()
 {
     SetLexer(wxSTC_LEX_XML);
+}
+
+void XmlEditorCtrl::SetupIndicators()
+{
+    // Indicator for all search matches (yellow/orange highlight)
+    IndicatorSetStyle(INDICATOR_SEARCH, wxSTC_INDIC_ROUNDBOX);
+    IndicatorSetForeground(INDICATOR_SEARCH, wxColour(255, 200, 0));  // Yellow/orange
+    IndicatorSetAlpha(INDICATOR_SEARCH, 100);
+    IndicatorSetOutlineAlpha(INDICATOR_SEARCH, 200);
+    IndicatorSetUnder(INDICATOR_SEARCH, true);
+    
+    // Indicator for current match (brighter, more prominent)
+    IndicatorSetStyle(INDICATOR_CURRENT, wxSTC_INDIC_ROUNDBOX);
+    IndicatorSetForeground(INDICATOR_CURRENT, wxColour(255, 128, 0));  // Orange
+    IndicatorSetAlpha(INDICATOR_CURRENT, 180);
+    IndicatorSetOutlineAlpha(INDICATOR_CURRENT, 255);
+    IndicatorSetUnder(INDICATOR_CURRENT, true);
 }
 
 void XmlEditorCtrl::ApplySettings()
@@ -120,8 +140,22 @@ void XmlEditorCtrl::ApplySettings()
     SetCaretLineBackground(theme.caretLineBackground);
     SetSelBackground(true, theme.selectionBackground);
     
-    // Update folding markers for theme
+    // Update indicator colors based on theme
     bool isDark = theme.background.GetLuminance() < 0.5;
+    if (isDark)
+    {
+        // Brighter colors for dark themes
+        IndicatorSetForeground(INDICATOR_SEARCH, wxColour(200, 150, 50));
+        IndicatorSetForeground(INDICATOR_CURRENT, wxColour(255, 180, 0));
+    }
+    else
+    {
+        // Standard colors for light themes
+        IndicatorSetForeground(INDICATOR_SEARCH, wxColour(255, 200, 0));
+        IndicatorSetForeground(INDICATOR_CURRENT, wxColour(255, 128, 0));
+    }
+    
+    // Update folding markers for theme
     wxColour markerFg = isDark ? wxColour(200, 200, 200) : wxColour(80, 80, 80);
     wxColour markerBg = theme.background;
     
@@ -167,18 +201,122 @@ bool XmlEditorCtrl::LoadFile(const wxString& filePath)
     SetText(content);
     SetReadOnly(true);
 
-    // Reset search position
-    m_lastSearchPos = 0;
+    // Reset search
+    ClearSearch();
     EmptyUndoBuffer();
     SetSavePoint();
 
     return true;
 }
 
-void XmlEditorCtrl::FindNext()
+void XmlEditorCtrl::ClearHighlights()
 {
+    // Clear all search indicators
+    SetIndicatorCurrent(INDICATOR_SEARCH);
+    IndicatorClearRange(0, GetLength());
+    SetIndicatorCurrent(INDICATOR_CURRENT);
+    IndicatorClearRange(0, GetLength());
+}
+
+void XmlEditorCtrl::HighlightAllMatches()
+{
+    ClearHighlights();
+    
     if (m_searchText.IsEmpty())
         return;
+    
+    int flags = 0;
+    if (m_caseSensitive)
+        flags |= wxSTC_FIND_MATCHCASE;
+    if (m_wholeWord)
+        flags |= wxSTC_FIND_WHOLEWORD;
+    
+    int searchLen = m_searchText.Length();
+    int pos = 0;
+    int docLength = GetLength();
+    
+    SetIndicatorCurrent(INDICATOR_SEARCH);
+    
+    // Find and highlight all matches
+    while (pos < docLength)
+    {
+        int foundPos = FindText(pos, docLength, m_searchText, flags);
+        if (foundPos == -1)
+            break;
+        
+        // Highlight this match
+        IndicatorFillRange(foundPos, searchLen);
+        pos = foundPos + searchLen;
+    }
+}
+
+int XmlEditorCtrl::CountMatches()
+{
+    if (m_searchText.IsEmpty())
+        return 0;
+    
+    int flags = 0;
+    if (m_caseSensitive)
+        flags |= wxSTC_FIND_MATCHCASE;
+    if (m_wholeWord)
+        flags |= wxSTC_FIND_WHOLEWORD;
+    
+    int count = 0;
+    int pos = 0;
+    int docLength = GetLength();
+    int searchLen = m_searchText.Length();
+    
+    while (pos < docLength)
+    {
+        int foundPos = FindText(pos, docLength, m_searchText, flags);
+        if (foundPos == -1)
+            break;
+        
+        count++;
+        pos = foundPos + searchLen;
+    }
+    
+    return count;
+}
+
+int XmlEditorCtrl::GetMatchIndexAtPosition(int pos)
+{
+    if (m_searchText.IsEmpty())
+        return 0;
+    
+    int flags = 0;
+    if (m_caseSensitive)
+        flags |= wxSTC_FIND_MATCHCASE;
+    if (m_wholeWord)
+        flags |= wxSTC_FIND_WHOLEWORD;
+    
+    int index = 0;
+    int searchPos = 0;
+    int docLength = GetLength();
+    int searchLen = m_searchText.Length();
+    
+    while (searchPos < docLength)
+    {
+        int foundPos = FindText(searchPos, docLength, m_searchText, flags);
+        if (foundPos == -1)
+            break;
+        
+        index++;
+        if (foundPos >= pos)
+            return index;
+        
+        searchPos = foundPos + searchLen;
+    }
+    
+    return index;
+}
+
+SearchResult XmlEditorCtrl::FindNext()
+{
+    SearchResult result;
+    
+    if (m_searchText.IsEmpty())
+        return result;
 
     int flags = 0;
     if (m_caseSensitive)
@@ -196,34 +334,153 @@ void XmlEditorCtrl::FindNext()
     if (foundPos == -1 && startPos > 0)
     {
         foundPos = FindText(0, startPos, m_searchText, flags);
+        if (foundPos != -1)
+        {
+            result.wrapped = true;
+        }
     }
 
     if (foundPos != -1)
     {
-        int endFoundPos = foundPos + m_searchText.Length();
+        result.found = true;
+        int searchLen = m_searchText.Length();
+        int endFoundPos = foundPos + searchLen;
+        
+        // Clear previous current match indicator and set new one
+        SetIndicatorCurrent(INDICATOR_CURRENT);
+        IndicatorClearRange(0, GetLength());
+        IndicatorFillRange(foundPos, searchLen);
+        
         SetSelection(foundPos, endFoundPos);
         EnsureCaretVisible();
         m_lastSearchPos = endFoundPos;
+        
+        // Update match info
+        m_currentMatchIndex = GetMatchIndexAtPosition(foundPos);
+        result.matchIndex = m_currentMatchIndex;
+        result.totalMatches = m_matchCount;
     }
     else
     {
-        wxBell(); // Beep to indicate no more matches
-        m_lastSearchPos = 0; // Reset for next search
+        wxBell();
+        m_lastSearchPos = 0;
+        m_currentMatchIndex = 0;
     }
+    
+    return result;
+}
+
+SearchResult XmlEditorCtrl::FindPrevious()
+{
+    SearchResult result;
+    
+    if (m_searchText.IsEmpty())
+        return result;
+
+    int flags = 0;
+    if (m_caseSensitive)
+        flags |= wxSTC_FIND_MATCHCASE;
+    if (m_wholeWord)
+        flags |= wxSTC_FIND_WHOLEWORD;
+
+    // Use selection start to determine "current" position
+    // This way if we're on a match, we look for matches BEFORE this match starts
+    int selStart = GetSelectionStart();
+    int searchLen = m_searchText.Length();
+    int docLength = GetLength();
+    
+    // Search backwards by finding all matches and getting the one before current
+    int lastMatch = -1;
+    int pos = 0;
+    
+    // Find all matches that START before selStart
+    while (pos < selStart)
+    {
+        int foundPos = FindText(pos, docLength, m_searchText, flags);
+        if (foundPos == -1 || foundPos >= selStart)
+            break;
+        
+        lastMatch = foundPos;
+        pos = foundPos + searchLen;
+    }
+    
+    // If no match found before current position, wrap to end of document
+    if (lastMatch == -1)
+    {
+        // Find the last match in the entire document
+        pos = 0;
+        while (pos < docLength)
+        {
+            int foundPos = FindText(pos, docLength, m_searchText, flags);
+            if (foundPos == -1)
+                break;
+            
+            lastMatch = foundPos;
+            pos = foundPos + searchLen;
+        }
+        
+        // Only set wrapped if we found something and it's not the same position
+        if (lastMatch != -1 && lastMatch >= selStart)
+        {
+            result.wrapped = true;
+        }
+    }
+    
+    if (lastMatch != -1)
+    {
+        result.found = true;
+        int endFoundPos = lastMatch + searchLen;
+        
+        // Clear previous current match indicator and set new one
+        SetIndicatorCurrent(INDICATOR_CURRENT);
+        IndicatorClearRange(0, docLength);
+        IndicatorFillRange(lastMatch, searchLen);
+        
+        SetSelection(lastMatch, endFoundPos);
+        EnsureCaretVisible();
+        m_lastSearchPos = lastMatch;
+        
+        // Update match info
+        m_currentMatchIndex = GetMatchIndexAtPosition(lastMatch);
+        result.matchIndex = m_currentMatchIndex;
+        result.totalMatches = m_matchCount;
+    }
+    else
+    {
+        wxBell();
+        m_currentMatchIndex = 0;
+    }
+    
+    return result;
 }
 
 void XmlEditorCtrl::SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord)
 {
+    bool searchChanged = (text != m_searchText) || 
+                         (caseSensitive != m_caseSensitive) || 
+                         (wholeWord != m_wholeWord);
+    
     m_searchText = text;
     m_caseSensitive = caseSensitive;
     m_wholeWord = wholeWord;
     m_lastSearchPos = GetCurrentPos();
+    
+    if (searchChanged)
+    {
+        // Count and highlight all matches
+        m_matchCount = CountMatches();
+        HighlightAllMatches();
+        m_currentMatchIndex = 0;
+    }
 }
 
 void XmlEditorCtrl::ClearSearch()
 {
     m_searchText.Clear();
     m_lastSearchPos = 0;
+    m_matchCount = 0;
+    m_currentMatchIndex = 0;
+    ClearHighlights();
 }
 
 void XmlEditorCtrl::GotoLine(int lineNumber)

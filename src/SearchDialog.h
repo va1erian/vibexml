@@ -12,17 +12,21 @@ public:
 
 private:
     void OnFind(wxCommandEvent& event);
-    void OnFindNext(wxCommandEvent& event);
-    void OnCancel(wxCommandEvent& event);
+    void OnFindPrev(wxCommandEvent& event);
+    void OnClose(wxCommandEvent& event);
     void OnTextChanged(wxCommandEvent& event);
+    void OnCheckboxChanged(wxCommandEvent& event);
     
     void BindControls();
+    void UpdateStatus(const SearchResult& result);
+    void UpdateMatchCount();
 
     wxTextCtrl* m_searchTextCtrl;
     wxCheckBox* m_caseSensitiveCheck;
     wxCheckBox* m_wholeWordCheck;
     wxButton* m_findButton;
-    wxButton* m_findNextButton;
+    wxButton* m_findPrevButton;
+    wxStaticText* m_statusLabel;
     XmlEditorCtrl* m_editor;
 };
 

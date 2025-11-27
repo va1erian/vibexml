@@ -4,7 +4,7 @@
     <!-- Search Dialog -->
     <object class="wxDialog" name="SearchDialog">
         <title>Find</title>
-        <size>400,200</size>
+        <size>420,240</size>
         <style>wxDEFAULT_DIALOG_STYLE</style>
         <object class="wxBoxSizer">
             <orient>wxVERTICAL</orient>
@@ -20,16 +20,26 @@
             
             <!-- Search text control -->
             <object class="sizeritem">
-                <flag>wxEXPAND|wxALL</flag>
+                <flag>wxEXPAND|wxLEFT|wxRIGHT</flag>
                 <border>5</border>
                 <object class="wxTextCtrl" name="SearchTextCtrl">
                     <value></value>
                 </object>
             </object>
             
+            <!-- Status label for match count and wrap notification -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxALL</flag>
+                <border>5</border>
+                <object class="wxStaticText" name="SearchStatusLabel">
+                    <label></label>
+                    <fg>#666666</fg>
+                </object>
+            </object>
+            
             <!-- Case sensitive checkbox -->
             <object class="sizeritem">
-                <flag>wxALL</flag>
+                <flag>wxLEFT|wxRIGHT</flag>
                 <border>5</border>
                 <object class="wxCheckBox" name="CaseSensitiveCheck">
                     <label>Case sensitive</label>
@@ -55,8 +65,16 @@
                     <object class="sizeritem">
                         <flag>wxALL</flag>
                         <border>5</border>
+                        <object class="wxButton" name="FindPrevButton">
+                            <label>&lt; Previous</label>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <flag>wxALL</flag>
+                        <border>5</border>
                         <object class="wxButton" name="wxID_OK">
-                            <label>Find</label>
+                            <label>Next &gt;</label>
                             <default>1</default>
                         </object>
                     </object>
@@ -64,16 +82,8 @@
                     <object class="sizeritem">
                         <flag>wxALL</flag>
                         <border>5</border>
-                        <object class="wxButton" name="FindNextButton">
-                            <label>Find Next</label>
-                        </object>
-                    </object>
-                    
-                    <object class="sizeritem">
-                        <flag>wxALL</flag>
-                        <border>5</border>
                         <object class="wxButton" name="wxID_CANCEL">
-                            <label>Cancel</label>
+                            <label>Close</label>
                         </object>
                     </object>
                 </object>
@@ -424,4 +434,3 @@ Custom: Manually configure each color</label>
     </object>
     
 </resource>
-

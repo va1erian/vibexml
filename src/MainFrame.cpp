@@ -61,6 +61,7 @@ void MainFrame::CreateMenuBar()
     wxMenu* editMenu = new wxMenu();
     editMenu->Append(ID_Find, "&Find...\tCtrl+F", "Find text in the document");
     editMenu->Append(ID_FindNext, "Find &Next\tF3", "Find next occurrence");
+    editMenu->Append(ID_FindPrevious, "Find &Previous\tShift+F3", "Find previous occurrence");
     editMenu->AppendSeparator();
     editMenu->Append(ID_Settings, "&Settings...\tCtrl+,", "Configure editor appearance");
 
@@ -80,6 +81,7 @@ void MainFrame::CreateMenuBar()
     Bind(wxEVT_MENU, &MainFrame::OnExit, this, ID_Exit);
     Bind(wxEVT_MENU, &MainFrame::OnFind, this, ID_Find);
     Bind(wxEVT_MENU, &MainFrame::OnFindNext, this, ID_FindNext);
+    Bind(wxEVT_MENU, &MainFrame::OnFindPrevious, this, ID_FindPrevious);
     Bind(wxEVT_MENU, &MainFrame::OnToggleTreePanel, this, ID_ToggleTree);
     Bind(wxEVT_MENU, &MainFrame::OnSettings, this, ID_Settings);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
@@ -87,8 +89,34 @@ void MainFrame::CreateMenuBar()
 
 void MainFrame::CreateStatusBar()
 {
-    wxFrame::CreateStatusBar();
-    SetStatusText("Ready");
+    wxFrame::CreateStatusBar(2);  // Two fields: main status and search status
+    
+    int widths[] = { -1, 200 };  // Main field stretches, search status fixed width
+    GetStatusBar()->SetStatusWidths(2, widths);
+    
+    SetStatusText("Ready", 0);
+}
+
+void MainFrame::UpdateSearchStatus(const SearchResult& result)
+{
+    wxStatusBar* statusBar = GetStatusBar();
+    if (!statusBar)
+        return;
+    
+    if (!result.found)
+    {
+        statusBar->SetStatusText("No matches", 1);
+    }
+    else if (result.wrapped)
+    {
+        statusBar->SetStatusText(wxString::Format("Match %d/%d (wrapped)", 
+                                                   result.matchIndex, result.totalMatches), 1);
+    }
+    else
+    {
+        statusBar->SetStatusText(wxString::Format("Match %d/%d", 
+                                                   result.matchIndex, result.totalMatches), 1);
+    }
 }
 
 void MainFrame::OnOpenFile(wxCommandEvent& event)
@@ -113,13 +141,38 @@ void MainFrame::OnFind(wxCommandEvent& event)
 {
     SearchDialog dlg(this, m_editorCtrl);
     dlg.ShowModal();
+    
+    // Update status bar with current match info after dialog closes
+    if (m_editorCtrl && m_editorCtrl->GetMatchCount() > 0)
+    {
+        SearchResult result;
+        result.found = true;
+        result.wrapped = false;
+        result.matchIndex = m_editorCtrl->GetCurrentMatchIndex();
+        result.totalMatches = m_editorCtrl->GetMatchCount();
+        UpdateSearchStatus(result);
+    }
+    else
+    {
+        GetStatusBar()->SetStatusText("", 1);
+    }
 }
 
 void MainFrame::OnFindNext(wxCommandEvent& event)
 {
     if (m_editorCtrl)
     {
-        m_editorCtrl->FindNext();
+        SearchResult result = m_editorCtrl->FindNext();
+        UpdateSearchStatus(result);
+    }
+}
+
+void MainFrame::OnFindPrevious(wxCommandEvent& event)
+{
+    if (m_editorCtrl)
+    {
+        SearchResult result = m_editorCtrl->FindPrevious();
+        UpdateSearchStatus(result);
     }
 }
 
@@ -208,7 +261,8 @@ void MainFrame::LoadXmlFile(const wxString& filePath)
 
     // Update status bar
     wxFileName fileName(filePath);
-    GetStatusBar()->SetStatusText("Loaded: " + fileName.GetFullName());
+    SetStatusText("Loaded: " + fileName.GetFullName(), 0);
+    SetStatusText("", 1);  // Clear search status
 }
 
 void MainFrame::UpdateRecentFilesMenu()
