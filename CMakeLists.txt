@@ -47,22 +47,26 @@ endif()
 set(SOURCES
     src/main.cpp
     src/MainFrame.cpp
-    src/XmlTreeCtrl.cpp
+    src/VirtualXmlTree.cpp
     src/XmlEditorCtrl.cpp
+    src/XmlStreamParser.cpp
     src/SearchDialog.cpp
     src/RecentFiles.cpp
     src/EditorSettings.cpp
     src/SettingsDialog.cpp
+    src/FileLoader.cpp
 )
 
 set(HEADERS
     src/MainFrame.h
-    src/XmlTreeCtrl.h
+    src/VirtualXmlTree.h
     src/XmlEditorCtrl.h
+    src/XmlStreamParser.h
     src/SearchDialog.h
     src/RecentFiles.h
     src/EditorSettings.h
     src/SettingsDialog.h
+    src/FileLoader.h
 )
 
 # XRC Resource files - one per dialog

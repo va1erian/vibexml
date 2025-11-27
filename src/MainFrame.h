@@ -4,7 +4,7 @@
 #include <wx/wx.h>
 #include <wx/splitter.h>
 #include <wx/menu.h>
-#include "XmlTreeCtrl.h"
+#include "VirtualXmlTree.h"
 #include "XmlEditorCtrl.h"
 #include "RecentFiles.h"
 
@@ -23,7 +23,7 @@ private:
     void OnFormatXml(wxCommandEvent& event);
     void OnToggleTreePanel(wxCommandEvent& event);
     void OnRecentFile(wxCommandEvent& event);
-    void OnTreeItemSelected(wxTreeEvent& event);
+    void OnTreeSelectionChanged(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
     void OnSettings(wxCommandEvent& event);
     
@@ -35,7 +35,7 @@ private:
     void CreateStatusBar();
 
     wxSplitterWindow* m_splitter;
-    XmlTreeCtrl* m_treeCtrl;
+    VirtualXmlTree* m_treeCtrl;
     XmlEditorCtrl* m_editorCtrl;
     RecentFiles* m_recentFiles;
     wxMenu* m_recentFilesMenu;

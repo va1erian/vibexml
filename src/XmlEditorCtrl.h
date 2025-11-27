@@ -26,6 +26,7 @@ public:
                   long style = 0);
 
     bool LoadFile(const wxString& filePath);
+    bool LoadFromString(const wxString& content);
     SearchResult FindNext();
     SearchResult FindPrevious();
     void SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord);

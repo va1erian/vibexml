@@ -2,6 +2,7 @@
 #include "SearchDialog.h"
 #include "SettingsDialog.h"
 #include "EditorSettings.h"
+#include "FileLoader.h"
 #include <wx/filedlg.h>
 #include <wx/msgdlg.h>
 #include <wx/filename.h>
@@ -18,15 +19,15 @@ MainFrame::MainFrame()
     m_splitter = new wxSplitterWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                                       wxSP_3D | wxSP_LIVE_UPDATE);
 
-    // Create tree control (left panel)
-    m_treeCtrl = new XmlTreeCtrl(m_splitter, wxID_ANY);
+    // Create virtual tree control (left panel) - fully virtualized for large files
+    m_treeCtrl = new VirtualXmlTree(m_splitter, wxID_ANY);
     m_treeCtrl->SetMinSize(wxSize(250, -1));
 
     // Create editor control (right panel)
     m_editorCtrl = new XmlEditorCtrl(m_splitter, wxID_ANY);
 
     // Connect tree selection event
-    m_treeCtrl->Bind(wxEVT_TREE_SEL_CHANGED, &MainFrame::OnTreeItemSelected, this);
+    m_treeCtrl->Bind(wxEVT_VIRTUALTREE_SELECTION_CHANGED, &MainFrame::OnTreeSelectionChanged, this);
 
     // Split the window
     m_splitter->SplitVertically(m_treeCtrl, m_editorCtrl, 300);
@@ -189,7 +190,7 @@ void MainFrame::OnFormatXml(wxCommandEvent& event)
             if (m_treeCtrl)
             {
                 wxString formattedContent = m_editorCtrl->GetText();
-                if (m_treeCtrl->LoadXmlFromString(formattedContent))
+                if (m_treeCtrl->LoadFromString(formattedContent))
                 {
                     SetStatusText("XML formatted successfully", 0);
                 }
@@ -236,10 +237,9 @@ void MainFrame::OnRecentFile(wxCommandEvent& event)
     }
 }
 
-void MainFrame::OnTreeItemSelected(wxTreeEvent& event)
+void MainFrame::OnTreeSelectionChanged(wxCommandEvent& event)
 {
-    wxTreeItemId itemId = event.GetItem();
-    int lineNumber = m_treeCtrl->GetLineNumber(itemId);
+    int lineNumber = m_treeCtrl->GetSelectedLineNumber();
     if (lineNumber > 0 && m_editorCtrl)
     {
         // Navigate to line and highlight it
@@ -252,12 +252,6 @@ void MainFrame::OnTreeItemSelected(wxTreeEvent& event)
 
 void MainFrame::OnClose(wxCloseEvent& event)
 {
-    // Clear tree to speed up shutdown cleanup
-    if (m_treeCtrl)
-    {
-        m_treeCtrl->DeleteAllItems();
-    }
-    
     // Save recent files (destructor will also try to save, but this ensures it happens)
     if (m_recentFiles)
     {
@@ -275,27 +269,82 @@ void MainFrame::LoadXmlFile(const wxString& filePath)
         return;
     }
 
-    // Load XML content into editor
-    if (!m_editorCtrl->LoadFile(filePath))
+    wxFileName fileName(filePath);
+    wxULongLong fileSize = fileName.GetSize();
+    
+    // Use progress dialog for files larger than 10 MB
+    const wxULongLong LARGE_FILE_THRESHOLD(10 * 1024 * 1024);
+    
+    wxString content;
+    double loadTime = 0;
+    
+    if (fileSize > LARGE_FILE_THRESHOLD)
     {
-        wxMessageBox("Failed to load file: " + filePath, "Error", wxOK | wxICON_ERROR);
-        return;
+        // Use progress dialog for large files
+        FileLoadProgressDialog loader(this, filePath);
+        if (!loader.Load())
+        {
+            if (!loader.GetResult().errorMessage.IsEmpty() && 
+                loader.GetResult().errorMessage != "Loading cancelled")
+            {
+                wxMessageBox("Failed to load file: " + loader.GetResult().errorMessage, 
+                             "Error", wxOK | wxICON_ERROR);
+            }
+            return;
+        }
+        
+        content = loader.GetContent();
+        loadTime = loader.GetResult().loadTimeSeconds;
+        
+        // Show busy cursor while setting content
+        wxBusyCursor wait;
+        SetStatusText("Setting editor content...", 0);
+        wxYield();
+        
+        // Load content into editor
+        if (!m_editorCtrl->LoadFromString(content))
+        {
+            wxMessageBox("Failed to set editor content", "Error", wxOK | wxICON_ERROR);
+            return;
+        }
     }
-
-    // Parse XML and build tree
-    if (!m_treeCtrl->LoadXmlFile(filePath))
+    else
     {
-        wxMessageBox("Failed to parse XML file: " + filePath, "Error", wxOK | wxICON_ERROR);
-        return;
+        // For smaller files, use the simple direct load
+        if (!m_editorCtrl->LoadFile(filePath))
+        {
+            wxMessageBox("Failed to load file: " + filePath, "Error", wxOK | wxICON_ERROR);
+            return;
+        }
+        content = m_editorCtrl->GetText();
+    }
+    
+    // Build tree - children load asynchronously in background
+    {
+        SetStatusText("Building tree view...", 0);
+        
+        if (!m_treeCtrl->LoadFromString(content))
+        {
+            wxMessageBox("Failed to parse XML file: " + filePath, "Error", wxOK | wxICON_ERROR);
+            return;
+        }
     }
 
     m_currentFilePath = filePath;
     m_recentFiles->AddFile(filePath);
     UpdateRecentFilesMenu();
 
-    // Update status bar
-    wxFileName fileName(filePath);
-    SetStatusText("Loaded: " + fileName.GetFullName(), 0);
+    // Update status bar with file info
+    wxString sizeStr = wxFileName::GetHumanReadableSize(fileSize);
+    if (loadTime > 0)
+    {
+        SetStatusText(wxString::Format("Loaded: %s (%s in %.1fs)", 
+                      fileName.GetFullName(), sizeStr, loadTime), 0);
+    }
+    else
+    {
+        SetStatusText(wxString::Format("Loaded: %s (%s)", fileName.GetFullName(), sizeStr), 0);
+    }
     SetStatusText("", 1);  // Clear search status
 }
 

@@ -211,8 +211,32 @@ bool XmlEditorCtrl::LoadFile(const wxString& filePath)
     if (!file.ReadAll(&content))
         return false;
 
+    return LoadFromString(content);
+}
+
+bool XmlEditorCtrl::LoadFromString(const wxString& content)
+{
     SetReadOnly(false);
+    
+    // For very large content, disable styling temporarily for faster loading
+    bool largeFile = content.Length() > 10 * 1024 * 1024;  // 10 MB
+    
+    if (largeFile)
+    {
+        // Disable lexer temporarily for faster text insertion
+        SetLexer(wxSTC_LEX_NULL);
+    }
+    
     SetText(content);
+    
+    if (largeFile)
+    {
+        // Re-enable XML lexer
+        SetLexer(wxSTC_LEX_XML);
+        // Only colorize visible portion initially
+        Colourise(0, GetEndStyled());
+    }
+    
     SetReadOnly(true);
 
     // Reset search and line highlight
@@ -220,6 +244,9 @@ bool XmlEditorCtrl::LoadFile(const wxString& filePath)
     ClearLineHighlight();
     EmptyUndoBuffer();
     SetSavePoint();
+    
+    // Go to start
+    GotoPos(0);
 
     return true;
 }
