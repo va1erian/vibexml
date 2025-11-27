@@ -8,16 +8,18 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
       m_wholeWord(false),
       m_lastSearchPos(0),
       m_matchCount(0),
-      m_currentMatchIndex(0)
+      m_currentMatchIndex(0),
+      m_highlightedLine(-1)
 {
     SetupXmlLexer();
     SetupIndicators();
+    SetupMarkers();
     
     // Enable line numbers
     SetMarginType(0, wxSTC_MARGIN_NUMBER);
     SetMarginWidth(0, 50);
 
-    // Enable folding
+    // Enable folding margin
     SetMarginType(1, wxSTC_MARGIN_SYMBOL);
     SetMarginWidth(1, 16);
     SetMarginMask(1, wxSTC_MASK_FOLDERS);
@@ -70,6 +72,14 @@ void XmlEditorCtrl::SetupIndicators()
     IndicatorSetAlpha(INDICATOR_CURRENT, 180);
     IndicatorSetOutlineAlpha(INDICATOR_CURRENT, 255);
     IndicatorSetUnder(INDICATOR_CURRENT, true);
+}
+
+void XmlEditorCtrl::SetupMarkers()
+{
+    // Marker for highlighting the current line when navigating from tree
+    MarkerDefine(MARKER_HIGHLIGHT, wxSTC_MARK_BACKGROUND);
+    MarkerSetBackground(MARKER_HIGHLIGHT, wxColour(100, 200, 255));  // Light blue
+    MarkerSetAlpha(MARKER_HIGHLIGHT, 80);
 }
 
 void XmlEditorCtrl::ApplySettings()
@@ -147,12 +157,16 @@ void XmlEditorCtrl::ApplySettings()
         // Brighter colors for dark themes
         IndicatorSetForeground(INDICATOR_SEARCH, wxColour(200, 150, 50));
         IndicatorSetForeground(INDICATOR_CURRENT, wxColour(255, 180, 0));
+        // Line highlight for dark theme
+        MarkerSetBackground(MARKER_HIGHLIGHT, wxColour(80, 120, 180));
     }
     else
     {
         // Standard colors for light themes
         IndicatorSetForeground(INDICATOR_SEARCH, wxColour(255, 200, 0));
         IndicatorSetForeground(INDICATOR_CURRENT, wxColour(255, 128, 0));
+        // Line highlight for light theme
+        MarkerSetBackground(MARKER_HIGHLIGHT, wxColour(180, 220, 255));
     }
     
     // Update folding markers for theme
@@ -201,8 +215,9 @@ bool XmlEditorCtrl::LoadFile(const wxString& filePath)
     SetText(content);
     SetReadOnly(true);
 
-    // Reset search
+    // Reset search and line highlight
     ClearSearch();
+    ClearLineHighlight();
     EmptyUndoBuffer();
     SetSavePoint();
 
@@ -216,6 +231,28 @@ void XmlEditorCtrl::ClearHighlights()
     IndicatorClearRange(0, GetLength());
     SetIndicatorCurrent(INDICATOR_CURRENT);
     IndicatorClearRange(0, GetLength());
+}
+
+void XmlEditorCtrl::ClearLineHighlight()
+{
+    if (m_highlightedLine >= 0)
+    {
+        MarkerDelete(m_highlightedLine, MARKER_HIGHLIGHT);
+        m_highlightedLine = -1;
+    }
+}
+
+void XmlEditorCtrl::HighlightLine(int lineNumber)
+{
+    // Clear previous highlight
+    ClearLineHighlight();
+    
+    // Add new highlight (lineNumber is 0-based here)
+    if (lineNumber >= 0 && lineNumber < GetLineCount())
+    {
+        MarkerAdd(lineNumber, MARKER_HIGHLIGHT);
+        m_highlightedLine = lineNumber;
+    }
 }
 
 void XmlEditorCtrl::HighlightAllMatches()
@@ -315,6 +352,9 @@ SearchResult XmlEditorCtrl::FindNext()
 {
     SearchResult result;
     
+    // Clear line highlight when searching
+    ClearLineHighlight();
+    
     if (m_searchText.IsEmpty())
         return result;
 
@@ -373,6 +413,9 @@ SearchResult XmlEditorCtrl::FindNext()
 SearchResult XmlEditorCtrl::FindPrevious()
 {
     SearchResult result;
+    
+    // Clear line highlight when searching
+    ClearLineHighlight();
     
     if (m_searchText.IsEmpty())
         return result;
@@ -483,7 +526,7 @@ void XmlEditorCtrl::ClearSearch()
     ClearHighlights();
 }
 
-void XmlEditorCtrl::GotoLine(int lineNumber)
+void XmlEditorCtrl::GotoLine(int lineNumber, bool highlight)
 {
     if (lineNumber < 1)
         return;
@@ -492,8 +535,24 @@ void XmlEditorCtrl::GotoLine(int lineNumber)
     if (lineNumber > lineCount)
         lineNumber = lineCount;
 
+    // Convert to 0-based line number
+    int line0 = lineNumber - 1;
+    
     // wxStyledTextCtrl::GotoLine uses 0-based line numbers
-    wxStyledTextCtrl::GotoLine(lineNumber - 1);
+    wxStyledTextCtrl::GotoLine(line0);
+    
+    // Select the entire line content for visibility
+    int lineStart = PositionFromLine(line0);
+    int lineEnd = GetLineEndPosition(line0);
+    SetSelection(lineStart, lineEnd);
+    
+    // Ensure line is visible (unfold if needed)
+    EnsureVisible(line0);
     EnsureCaretVisible();
-    SetSelection(GetCurrentPos(), GetCurrentPos());
+    
+    // Highlight the line if requested
+    if (highlight)
+    {
+        HighlightLine(line0);
+    }
 }

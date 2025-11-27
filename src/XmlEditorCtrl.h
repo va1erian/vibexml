@@ -29,7 +29,7 @@ public:
     SearchResult FindPrevious();
     void SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord);
     void ClearSearch();
-    void GotoLine(int lineNumber);
+    void GotoLine(int lineNumber, bool highlight = false);
     
     // Apply current settings from EditorSettings
     void ApplySettings();
@@ -42,8 +42,11 @@ private:
     void SetupXmlLexer();
     void SetupStyles();
     void SetupIndicators();
+    void SetupMarkers();
     void HighlightAllMatches();
     void ClearHighlights();
+    void ClearLineHighlight();
+    void HighlightLine(int lineNumber);
     int CountMatches();
     int GetMatchIndexAtPosition(int pos);
 
@@ -53,10 +56,14 @@ private:
     int m_lastSearchPos;
     int m_matchCount;
     int m_currentMatchIndex;
+    int m_highlightedLine;  // Currently highlighted line (-1 if none)
     
-    // Indicator number for search highlights
+    // Indicator numbers for search highlights
     static const int INDICATOR_SEARCH = 8;
     static const int INDICATOR_CURRENT = 9;
+    
+    // Marker for line highlight
+    static const int MARKER_HIGHLIGHT = 1;
 };
 
 #endif // XMLEDITORCTRL_H

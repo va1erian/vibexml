@@ -210,9 +210,13 @@ void MainFrame::OnTreeItemSelected(wxTreeEvent& event)
 {
     wxTreeItemId itemId = event.GetItem();
     int lineNumber = m_treeCtrl->GetLineNumber(itemId);
-    if (lineNumber >= 0 && m_editorCtrl)
+    if (lineNumber > 0 && m_editorCtrl)
     {
-        m_editorCtrl->GotoLine(lineNumber);
+        // Navigate to line and highlight it
+        m_editorCtrl->GotoLine(lineNumber, true);
+        
+        // Update status bar with line info
+        SetStatusText(wxString::Format("Line %d", lineNumber), 1);
     }
 }
 
