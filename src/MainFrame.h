@@ -23,6 +23,7 @@ private:
     void OnRecentFile(wxCommandEvent& event);
     void OnTreeItemSelected(wxTreeEvent& event);
     void OnClose(wxCloseEvent& event);
+    void OnSettings(wxCommandEvent& event);
 
     void LoadXmlFile(const wxString& filePath);
     void UpdateRecentFilesMenu();
@@ -43,9 +44,9 @@ private:
         ID_Find = wxID_FIND,
         ID_FindNext = 1001,
         ID_ToggleTree = 1000,
-        ID_RecentFileBase = 2000
+        ID_RecentFileBase = 2000,
+        ID_Settings = 3000
     };
 };
 
 #endif // MAINFRAME_H
-

@@ -15,6 +15,8 @@ private:
     void OnFindNext(wxCommandEvent& event);
     void OnCancel(wxCommandEvent& event);
     void OnTextChanged(wxCommandEvent& event);
+    
+    void BindControls();
 
     wxTextCtrl* m_searchTextCtrl;
     wxCheckBox* m_caseSensitiveCheck;
@@ -25,4 +27,3 @@ private:
 };
 
 #endif // SEARCHDIALOG_H
-

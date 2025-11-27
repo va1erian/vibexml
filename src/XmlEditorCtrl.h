@@ -3,6 +3,7 @@
 
 #include <wx/wx.h>
 #include <wx/stc/stc.h>
+#include "EditorSettings.h"
 
 class XmlEditorCtrl : public wxStyledTextCtrl
 {
@@ -17,6 +18,9 @@ public:
     void SetSearchText(const wxString& text, bool caseSensitive, bool wholeWord);
     void ClearSearch();
     void GotoLine(int lineNumber);
+    
+    // Apply current settings from EditorSettings
+    void ApplySettings();
 
 private:
     void SetupXmlLexer();
@@ -29,4 +33,3 @@ private:
 };
 
 #endif // XMLEDITORCTRL_H
-

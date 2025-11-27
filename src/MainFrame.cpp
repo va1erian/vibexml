@@ -1,5 +1,7 @@
 #include "MainFrame.h"
 #include "SearchDialog.h"
+#include "SettingsDialog.h"
+#include "EditorSettings.h"
 #include <wx/filedlg.h>
 #include <wx/msgdlg.h>
 #include <wx/filename.h>
@@ -59,6 +61,8 @@ void MainFrame::CreateMenuBar()
     wxMenu* editMenu = new wxMenu();
     editMenu->Append(ID_Find, "&Find...\tCtrl+F", "Find text in the document");
     editMenu->Append(ID_FindNext, "Find &Next\tF3", "Find next occurrence");
+    editMenu->AppendSeparator();
+    editMenu->Append(ID_Settings, "&Settings...\tCtrl+,", "Configure editor appearance");
 
     // View menu
     wxMenu* viewMenu = new wxMenu();
@@ -77,6 +81,7 @@ void MainFrame::CreateMenuBar()
     Bind(wxEVT_MENU, &MainFrame::OnFind, this, ID_Find);
     Bind(wxEVT_MENU, &MainFrame::OnFindNext, this, ID_FindNext);
     Bind(wxEVT_MENU, &MainFrame::OnToggleTreePanel, this, ID_ToggleTree);
+    Bind(wxEVT_MENU, &MainFrame::OnSettings, this, ID_Settings);
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
 }
 
@@ -123,6 +128,19 @@ void MainFrame::OnToggleTreePanel(wxCommandEvent& event)
     bool isChecked = GetMenuBar()->IsChecked(ID_ToggleTree);
     m_treeCtrl->Show(isChecked);
     m_splitter->Layout();
+}
+
+void MainFrame::OnSettings(wxCommandEvent& event)
+{
+    SettingsDialog dlg(this);
+    if (dlg.ShowModal() == wxID_OK)
+    {
+        // Apply updated settings to the editor
+        if (m_editorCtrl)
+        {
+            m_editorCtrl->ApplySettings();
+        }
+    }
 }
 
 void MainFrame::OnRecentFile(wxCommandEvent& event)
@@ -228,4 +246,3 @@ void MainFrame::UpdateRecentFilesMenu()
         Bind(wxEVT_MENU, &MainFrame::OnRecentFile, this, id);
     }
 }
-

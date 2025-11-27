@@ -9,12 +9,7 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
       m_lastSearchPos(0)
 {
     SetupXmlLexer();
-    SetupStyles();
-
-    // Set monospace font
-    wxFont font(10, wxFONTFAMILY_TELETYPE, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
-    StyleSetFont(wxSTC_STYLE_DEFAULT, font);
-
+    
     // Enable line numbers
     SetMarginType(0, wxSTC_MARGIN_NUMBER);
     SetMarginWidth(0, 50);
@@ -47,6 +42,9 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
 
     // Read-only by default (viewer mode)
     SetReadOnly(true);
+    
+    // Apply settings from configuration
+    ApplySettings();
 }
 
 void XmlEditorCtrl::SetupXmlLexer()
@@ -54,48 +52,105 @@ void XmlEditorCtrl::SetupXmlLexer()
     SetLexer(wxSTC_LEX_XML);
 }
 
-void XmlEditorCtrl::SetupStyles()
+void XmlEditorCtrl::ApplySettings()
 {
-    // Default style
-    StyleSetForeground(wxSTC_STYLE_DEFAULT, wxColour(0, 0, 0));
-    StyleSetBackground(wxSTC_STYLE_DEFAULT, wxColour(255, 255, 255));
-    StyleSetFont(wxSTC_STYLE_DEFAULT, wxFont(10, wxFONTFAMILY_TELETYPE, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
-
+    EditorSettings& settings = EditorSettings::Get();
+    wxFont font = settings.GetFont();
+    EditorTheme theme = settings.GetTheme();
+    
+    // Apply font to default style first
+    StyleSetFont(wxSTC_STYLE_DEFAULT, font);
+    StyleSetForeground(wxSTC_STYLE_DEFAULT, theme.foreground);
+    StyleSetBackground(wxSTC_STYLE_DEFAULT, theme.background);
+    
+    // Clear all styles and inherit from default
+    StyleClearAll();
+    
+    // Line numbers
+    StyleSetForeground(wxSTC_STYLE_LINENUMBER, theme.lineNumberFg);
+    StyleSetBackground(wxSTC_STYLE_LINENUMBER, theme.lineNumberBg);
+    StyleSetFont(wxSTC_STYLE_LINENUMBER, font);
+    
     // XML tags
-    StyleSetForeground(wxSTC_H_TAG, wxColour(128, 0, 0));
+    StyleSetForeground(wxSTC_H_TAG, theme.tagColor);
     StyleSetBold(wxSTC_H_TAG, true);
-
-    // XML tag end
-    StyleSetForeground(wxSTC_H_TAGEND, wxColour(128, 0, 0));
+    StyleSetForeground(wxSTC_H_TAGEND, theme.tagColor);
     StyleSetBold(wxSTC_H_TAGEND, true);
-
+    StyleSetForeground(wxSTC_H_TAGUNKNOWN, theme.tagColor);
+    
     // XML attribute names
-    StyleSetForeground(wxSTC_H_ATTRIBUTE, wxColour(255, 0, 0));
+    StyleSetForeground(wxSTC_H_ATTRIBUTE, theme.attributeNameColor);
     StyleSetBold(wxSTC_H_ATTRIBUTE, true);
+    StyleSetForeground(wxSTC_H_ATTRIBUTEUNKNOWN, theme.attributeNameColor);
 
-    // XML attribute values
-    StyleSetForeground(wxSTC_H_ATTRIBUTEUNKNOWN, wxColour(0, 0, 255));
-
-    // XML text content (use default style for text)
-    // Note: wxSTC_H_TEXT may not be available in all wxWidgets versions
+    // XML attribute values (strings)
+    StyleSetForeground(wxSTC_H_DOUBLESTRING, theme.attributeValueColor);
+    StyleSetForeground(wxSTC_H_SINGLESTRING, theme.attributeValueColor);
+    StyleSetForeground(wxSTC_H_VALUE, theme.attributeValueColor);
 
     // XML comments
-    StyleSetForeground(wxSTC_H_COMMENT, wxColour(0, 128, 0));
+    StyleSetForeground(wxSTC_H_COMMENT, theme.commentColor);
     StyleSetItalic(wxSTC_H_COMMENT, true);
 
     // XML numbers
-    StyleSetForeground(wxSTC_H_NUMBER, wxColour(0, 0, 255));
-
-    // XML strings
-    StyleSetForeground(wxSTC_H_DOUBLESTRING, wxColour(0, 0, 255));
-    StyleSetForeground(wxSTC_H_SINGLESTRING, wxColour(0, 0, 255));
+    StyleSetForeground(wxSTC_H_NUMBER, theme.attributeValueColor);
 
     // XML entities
-    StyleSetForeground(wxSTC_H_ENTITY, wxColour(128, 0, 128));
+    StyleSetForeground(wxSTC_H_ENTITY, theme.entityColor);
 
-    // Line number margin
-    StyleSetForeground(wxSTC_STYLE_LINENUMBER, wxColour(128, 128, 128));
-    StyleSetBackground(wxSTC_STYLE_LINENUMBER, wxColour(240, 240, 240));
+    // CDATA
+    StyleSetForeground(wxSTC_H_CDATA, theme.cdataColor);
+    
+    // XML declaration
+    StyleSetForeground(wxSTC_H_XMLSTART, theme.tagColor);
+    StyleSetForeground(wxSTC_H_XMLEND, theme.tagColor);
+    
+    // Default text content
+    StyleSetForeground(wxSTC_H_DEFAULT, theme.textContentColor);
+    
+    // Set all backgrounds to theme background
+    for (int i = 0; i <= wxSTC_H_SGML_ENTITY; i++)
+    {
+        StyleSetBackground(i, theme.background);
+    }
+    
+    // Caret and selection
+    SetCaretForeground(theme.foreground);
+    SetCaretLineVisible(true);
+    SetCaretLineBackground(theme.caretLineBackground);
+    SetSelBackground(true, theme.selectionBackground);
+    
+    // Update folding markers for theme
+    bool isDark = theme.background.GetLuminance() < 0.5;
+    wxColour markerFg = isDark ? wxColour(200, 200, 200) : wxColour(80, 80, 80);
+    wxColour markerBg = theme.background;
+    
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDER, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDER, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDEROPEN, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDEROPEN, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDEREND, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDEREND, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDERMIDTAIL, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDERMIDTAIL, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDEROPENMID, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDEROPENMID, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDERSUB, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDERSUB, markerBg);
+    MarkerSetForeground(wxSTC_MARKNUM_FOLDERTAIL, markerFg);
+    MarkerSetBackground(wxSTC_MARKNUM_FOLDERTAIL, markerBg);
+    
+    // Set fold margin colors
+    SetFoldMarginColour(true, theme.lineNumberBg);
+    SetFoldMarginHiColour(true, theme.lineNumberBg);
+    
+    Refresh();
+}
+
+void XmlEditorCtrl::SetupStyles()
+{
+    // This is now handled by ApplySettings()
+    ApplySettings();
 }
 
 bool XmlEditorCtrl::LoadFile(const wxString& filePath)
@@ -185,4 +240,3 @@ void XmlEditorCtrl::GotoLine(int lineNumber)
     EnsureCaretVisible();
     SetSelection(GetCurrentPos(), GetCurrentPos());
 }
-

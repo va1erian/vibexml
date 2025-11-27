@@ -1,0 +1,427 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resource xmlns="http://www.wxwidgets.org/wxxrc" version="2.5.3.0">
+    
+    <!-- Search Dialog -->
+    <object class="wxDialog" name="SearchDialog">
+        <title>Find</title>
+        <size>400,200</size>
+        <style>wxDEFAULT_DIALOG_STYLE</style>
+        <object class="wxBoxSizer">
+            <orient>wxVERTICAL</orient>
+            
+            <!-- Search label -->
+            <object class="sizeritem">
+                <flag>wxALL</flag>
+                <border>5</border>
+                <object class="wxStaticText">
+                    <label>Find:</label>
+                </object>
+            </object>
+            
+            <!-- Search text control -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxALL</flag>
+                <border>5</border>
+                <object class="wxTextCtrl" name="SearchTextCtrl">
+                    <value></value>
+                </object>
+            </object>
+            
+            <!-- Case sensitive checkbox -->
+            <object class="sizeritem">
+                <flag>wxALL</flag>
+                <border>5</border>
+                <object class="wxCheckBox" name="CaseSensitiveCheck">
+                    <label>Case sensitive</label>
+                </object>
+            </object>
+            
+            <!-- Whole words checkbox -->
+            <object class="sizeritem">
+                <flag>wxALL</flag>
+                <border>5</border>
+                <object class="wxCheckBox" name="WholeWordCheck">
+                    <label>Whole words only</label>
+                </object>
+            </object>
+            
+            <!-- Buttons -->
+            <object class="sizeritem">
+                <flag>wxALIGN_CENTER|wxALL</flag>
+                <border>5</border>
+                <object class="wxBoxSizer">
+                    <orient>wxHORIZONTAL</orient>
+                    
+                    <object class="sizeritem">
+                        <flag>wxALL</flag>
+                        <border>5</border>
+                        <object class="wxButton" name="wxID_OK">
+                            <label>Find</label>
+                            <default>1</default>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <flag>wxALL</flag>
+                        <border>5</border>
+                        <object class="wxButton" name="FindNextButton">
+                            <label>Find Next</label>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <flag>wxALL</flag>
+                        <border>5</border>
+                        <object class="wxButton" name="wxID_CANCEL">
+                            <label>Cancel</label>
+                        </object>
+                    </object>
+                </object>
+            </object>
+        </object>
+    </object>
+    
+    <!-- Settings Dialog -->
+    <object class="wxDialog" name="SettingsDialog">
+        <title>Editor Settings</title>
+        <size>650,550</size>
+        <style>wxDEFAULT_DIALOG_STYLE|wxRESIZE_BORDER</style>
+        <object class="wxBoxSizer">
+            <orient>wxVERTICAL</orient>
+            
+            <!-- Notebook -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxALL</flag>
+                <border>10</border>
+                <object class="wxNotebook" name="SettingsNotebook">
+                    
+                    <!-- Theme Page -->
+                    <object class="notebookpage">
+                        <label>Theme</label>
+                        <object class="wxPanel" name="ThemePanel">
+                            <object class="wxBoxSizer">
+                                <orient>wxVERTICAL</orient>
+                                
+                                <object class="sizeritem">
+                                    <flag>wxEXPAND|wxALL</flag>
+                                    <border>10</border>
+                                    <object class="wxStaticBoxSizer">
+                                        <label>Color Theme</label>
+                                        <orient>wxVERTICAL</orient>
+                                        
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND|wxALL</flag>
+                                            <border>10</border>
+                                            <object class="wxBoxSizer">
+                                                <orient>wxHORIZONTAL</orient>
+                                                
+                                                <object class="sizeritem">
+                                                    <flag>wxALIGN_CENTER_VERTICAL|wxRIGHT</flag>
+                                                    <border>10</border>
+                                                    <object class="wxStaticText">
+                                                        <label>Select Theme:</label>
+                                                    </object>
+                                                </object>
+                                                
+                                                <object class="sizeritem">
+                                                    <flag>wxEXPAND</flag>
+                                                    <proportion>1</proportion>
+                                                    <object class="wxChoice" name="ThemeChoice">
+                                                        <content>
+                                                            <item>Light</item>
+                                                            <item>Dark</item>
+                                                            <item>Dracula</item>
+                                                            <item>Solarized Dark</item>
+                                                            <item>Custom</item>
+                                                        </content>
+                                                    </object>
+                                                </object>
+                                            </object>
+                                        </object>
+                                        
+                                        <object class="sizeritem">
+                                            <flag>wxALL</flag>
+                                            <border>10</border>
+                                            <object class="wxStaticText" name="ThemeDescription">
+                                                <label>Light: Classic light theme with high contrast
+Dark: Modern dark theme, easy on the eyes
+Dracula: Popular dark theme with vibrant colors
+Solarized Dark: Carefully designed dark color palette
+Custom: Manually configure each color</label>
+                                                <fg>#646464</fg>
+                                            </object>
+                                        </object>
+                                    </object>
+                                </object>
+                            </object>
+                        </object>
+                    </object>
+                    
+                    <!-- Font Page -->
+                    <object class="notebookpage">
+                        <label>Font</label>
+                        <object class="wxPanel" name="FontPanel">
+                            <object class="wxBoxSizer">
+                                <orient>wxVERTICAL</orient>
+                                
+                                <object class="sizeritem">
+                                    <flag>wxEXPAND|wxALL</flag>
+                                    <border>10</border>
+                                    <object class="wxStaticBoxSizer">
+                                        <label>Editor Font</label>
+                                        <orient>wxVERTICAL</orient>
+                                        
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND|wxALL</flag>
+                                            <border>10</border>
+                                            <object class="wxBoxSizer">
+                                                <orient>wxHORIZONTAL</orient>
+                                                
+                                                <object class="sizeritem">
+                                                    <flag>wxALIGN_CENTER_VERTICAL|wxRIGHT</flag>
+                                                    <border>10</border>
+                                                    <object class="wxStaticText">
+                                                        <label>Font:</label>
+                                                    </object>
+                                                </object>
+                                                
+                                                <object class="sizeritem">
+                                                    <flag>wxEXPAND</flag>
+                                                    <proportion>1</proportion>
+                                                    <object class="wxFontPickerCtrl" name="FontPicker">
+                                                        <style>wxFNTP_DEFAULT_STYLE|wxFNTP_USEFONT_FOR_LABEL</style>
+                                                    </object>
+                                                </object>
+                                            </object>
+                                        </object>
+                                        
+                                        <object class="sizeritem">
+                                            <flag>wxALL</flag>
+                                            <border>10</border>
+                                            <object class="wxStaticText">
+                                                <label>Recommended monospace fonts:
+• Consolas (Windows default)
+• JetBrains Mono
+• Fira Code
+• Source Code Pro
+• Cascadia Code</label>
+                                                <fg>#646464</fg>
+                                            </object>
+                                        </object>
+                                    </object>
+                                </object>
+                            </object>
+                        </object>
+                    </object>
+                    
+                    <!-- Colors Page -->
+                    <object class="notebookpage">
+                        <label>Colors</label>
+                        <object class="wxPanel" name="ColorsPanel">
+                            <object class="wxBoxSizer">
+                                <orient>wxVERTICAL</orient>
+                                
+                                <object class="sizeritem">
+                                    <flag>wxALL</flag>
+                                    <border>10</border>
+                                    <object class="wxStaticText">
+                                        <label>Customize individual colors. Changing colors switches to 'Custom' theme.</label>
+                                        <fg>#646464</fg>
+                                    </object>
+                                </object>
+                                
+                                <object class="sizeritem">
+                                    <flag>wxEXPAND|wxALL</flag>
+                                    <border>10</border>
+                                    <object class="wxFlexGridSizer">
+                                        <cols>2</cols>
+                                        <vgap>10</vgap>
+                                        <hgap>10</hgap>
+                                        <growablecols>1</growablecols>
+                                        
+                                        <!-- Background -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Background:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="BgColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Default Text -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Default Text:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="FgColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Line Number Text -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Line Number Text:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="LineNumFgPicker"/>
+                                        </object>
+                                        
+                                        <!-- Line Number Background -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Line Number Background:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="LineNumBgPicker"/>
+                                        </object>
+                                        
+                                        <!-- XML Tags -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>XML Tags:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="TagColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Attribute Names -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Attribute Names:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="AttrNameColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Attribute Values -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Attribute Values:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="AttrValueColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Comments -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Comments:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="CommentColorPicker"/>
+                                        </object>
+                                        
+                                        <!-- Text Content -->
+                                        <object class="sizeritem">
+                                            <flag>wxALIGN_CENTER_VERTICAL</flag>
+                                            <object class="wxStaticText">
+                                                <label>Text Content:</label>
+                                            </object>
+                                        </object>
+                                        <object class="sizeritem">
+                                            <flag>wxEXPAND</flag>
+                                            <object class="wxColourPickerCtrl" name="TextContentColorPicker"/>
+                                        </object>
+                                    </object>
+                                </object>
+                            </object>
+                        </object>
+                    </object>
+                </object>
+            </object>
+            
+            <!-- Preview Section -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxLEFT|wxRIGHT</flag>
+                <border>10</border>
+                <proportion>1</proportion>
+                <object class="wxStaticBoxSizer">
+                    <label>Preview</label>
+                    <orient>wxVERTICAL</orient>
+                    
+                    <object class="sizeritem">
+                        <flag>wxEXPAND|wxALL</flag>
+                        <border>5</border>
+                        <proportion>1</proportion>
+                        <object class="wxPanel" name="PreviewPanel">
+                            <size>-1,150</size>
+                        </object>
+                    </object>
+                </object>
+            </object>
+            
+            <!-- Separator line -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxALL</flag>
+                <border>5</border>
+                <object class="wxStaticLine"/>
+            </object>
+            
+            <!-- Buttons -->
+            <object class="sizeritem">
+                <flag>wxEXPAND|wxALL</flag>
+                <border>10</border>
+                <object class="wxBoxSizer">
+                    <orient>wxHORIZONTAL</orient>
+                    
+                    <object class="sizeritem">
+                        <flag>wxEXPAND</flag>
+                        <proportion>1</proportion>
+                        <object class="wxBoxSizer">
+                            <orient>wxHORIZONTAL</orient>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <flag>wxRIGHT</flag>
+                        <border>5</border>
+                        <object class="wxButton" name="ApplyButton">
+                            <label>Apply</label>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <flag>wxRIGHT</flag>
+                        <border>5</border>
+                        <object class="wxButton" name="wxID_OK">
+                            <label>OK</label>
+                            <default>1</default>
+                        </object>
+                    </object>
+                    
+                    <object class="sizeritem">
+                        <object class="wxButton" name="wxID_CANCEL">
+                            <label>Cancel</label>
+                        </object>
+                    </object>
+                </object>
+            </object>
+        </object>
+    </object>
+    
+</resource>
+
