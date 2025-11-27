@@ -15,9 +15,9 @@ XmlEditorCtrl::XmlEditorCtrl(wxWindow* parent, wxWindowID id,
     SetupIndicators();
     SetupMarkers();
     
-    // Enable line numbers
+    // Enable line numbers (wide enough for 7+ digits)
     SetMarginType(0, wxSTC_MARGIN_NUMBER);
-    SetMarginWidth(0, 50);
+    SetMarginWidth(0, 70);
 
     // Enable folding margin
     SetMarginType(1, wxSTC_MARGIN_SYMBOL);
@@ -266,8 +266,10 @@ bool XmlEditorCtrl::LoadFromStringWithProgress(const wxString& content, LoadProg
                 // Report progress and check for cancel
                 if (!progressCallback(percent, wxString::Format("Loading editor: %d%%", percent)))
                 {
-                    // Cancelled
+                    // Cancelled - clean up properly
+                    ClearAll();
                     Thaw();
+                    SetLexer(wxSTC_LEX_XML);
                     SetReadOnly(true);
                     return false;
                 }

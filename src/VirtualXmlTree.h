@@ -89,6 +89,7 @@ public:
 private:
     void OnSelectionChanged(wxDataViewEvent& event);
     void OnItemExpanding(wxDataViewEvent& event);
+    void OnItemActivated(wxDataViewEvent& event);
     void OnContextMenu(wxDataViewEvent& event);
     
     void StartChildLoading(VirtualTreeNode* node);

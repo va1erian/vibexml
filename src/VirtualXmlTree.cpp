@@ -250,6 +250,7 @@ VirtualXmlTree::VirtualXmlTree(wxWindow* parent, wxWindowID id,
     Bind(wxEVT_DATAVIEW_SELECTION_CHANGED, &VirtualXmlTree::OnSelectionChanged, this);
     Bind(wxEVT_DATAVIEW_ITEM_EXPANDING, &VirtualXmlTree::OnItemExpanding, this);
     Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &VirtualXmlTree::OnContextMenu, this);
+    Bind(wxEVT_DATAVIEW_ITEM_ACTIVATED, &VirtualXmlTree::OnItemActivated, this);
     Bind(wxEVT_CHILDREN_LOADED, &VirtualXmlTree::OnChildrenLoaded, this);
 }
 
@@ -501,6 +502,23 @@ void VirtualXmlTree::OnChildrenLoaded(wxThreadEvent& event)
                 Expand(parentItem);
             }
         });
+    }
+}
+
+void VirtualXmlTree::OnItemActivated(wxDataViewEvent& event)
+{
+    wxDataViewItem item = event.GetItem();
+    if (!item.IsOk())
+        return;
+    
+    // Toggle expand/collapse on double-click
+    if (IsExpanded(item))
+    {
+        Collapse(item);
+    }
+    else
+    {
+        Expand(item);
     }
 }
 

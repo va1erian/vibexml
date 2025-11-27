@@ -210,8 +210,21 @@ void MainFrame::OnFormatXml(wxCommandEvent& event)
 void MainFrame::OnToggleTreePanel(wxCommandEvent& event)
 {
     bool isChecked = GetMenuBar()->IsChecked(ID_ToggleTree);
-    m_treeCtrl->Show(isChecked);
-    m_splitter->Layout();
+    
+    if (isChecked)
+    {
+        // Show the tree panel
+        if (!m_splitter->IsSplit())
+        {
+            m_splitter->SplitVertically(m_treeCtrl, m_editorCtrl, 300);
+        }
+        m_treeCtrl->Show(true);
+    }
+    else
+    {
+        // Hide the tree panel
+        m_splitter->Unsplit(m_treeCtrl);
+    }
 }
 
 void MainFrame::OnSettings(wxCommandEvent& event)

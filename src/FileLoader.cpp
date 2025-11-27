@@ -127,17 +127,30 @@ class FileLoadHandler : public wxEvtHandler
 {
 public:
     FileLoadHandler(wxProgressDialog* dlg) 
-        : m_dialog(dlg), m_done(false), m_thread(nullptr) {}
+        : m_dialog(dlg), m_done(false), m_cancelled(false), m_thread(nullptr) {}
     
     void SetThread(FileLoader::ReaderThread* thread) { m_thread = thread; }
     
     void OnProgress(wxThreadEvent& event)
     {
-        if (m_dialog)
+        if (m_dialog && !m_cancelled)
         {
-            bool cont = m_dialog->Update(event.GetInt(), event.GetString());
+            wxString status = event.GetString();
+            bool cont;
+            
+            // Use Pulse for indeterminate operations like text conversion
+            if (status.Contains("Converting"))
+            {
+                cont = m_dialog->Pulse(status);
+            }
+            else
+            {
+                cont = m_dialog->Update(event.GetInt(), status);
+            }
+            
             if (!cont && m_thread)
             {
+                m_cancelled = true;
                 m_thread->RequestCancel();
             }
         }
@@ -150,12 +163,14 @@ public:
     }
     
     bool IsDone() const { return m_done; }
+    bool WasCancelled() const { return m_cancelled; }
     const FileLoadResult& GetResult() const { return m_result; }
     
 private:
     wxProgressDialog* m_dialog;
     FileLoadResult m_result;
     bool m_done;
+    bool m_cancelled;
     FileLoader::ReaderThread* m_thread;
     
     wxDECLARE_EVENT_TABLE();
@@ -174,7 +189,7 @@ bool FileLoader::LoadFile(wxWindow* parent,
     wxString message = wxString::Format("Loading: %s", fileName.GetFullName());
     
     wxProgressDialog dlg(title, message, 100, parent,
-                         wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_SMOOTH | 
+                         wxPD_APP_MODAL | wxPD_SMOOTH | wxPD_AUTO_HIDE |
                          wxPD_CAN_ABORT | wxPD_ELAPSED_TIME);
     dlg.SetSize(450, 160);
     dlg.CentreOnParent();
@@ -198,12 +213,27 @@ bool FileLoader::LoadFile(wxWindow* parent,
         return false;
     }
     
-    // Process events until loading completes
-    while (!handler.IsDone())
+    // Process events until loading completes or cancelled
+    while (!handler.IsDone() && !handler.WasCancelled())
     {
         wxYield();
         wxMilliSleep(10);
     }
+    
+    // Wait for thread to finish if cancelled
+    if (handler.WasCancelled())
+    {
+        // Give thread time to exit cleanly
+        int timeout = 50;  // 500ms max wait
+        while (!handler.IsDone() && timeout-- > 0)
+        {
+            wxYield();
+            wxMilliSleep(10);
+        }
+    }
+    
+    // Trigger auto-hide by updating to 100%
+    dlg.Update(100, "Complete");
     
     result = handler.GetResult();
     result.loadTimeSeconds = stopWatch.Time() / 1000.0;
@@ -226,13 +256,35 @@ bool FileLoader::LoadIntoEditor(wxWindow* parent,
     
     // For large files, use chunked loading with progress
     wxProgressDialog dlg("Loading Editor", "Preparing editor...", 100, parent,
-                         wxPD_APP_MODAL | wxPD_AUTO_HIDE | wxPD_SMOOTH | 
-                         wxPD_CAN_ABORT);
+                         wxPD_APP_MODAL | wxPD_SMOOTH | wxPD_AUTO_HIDE | wxPD_CAN_ABORT);
     dlg.SetSize(400, 150);
     dlg.CentreOnParent();
     
-    return editor->LoadFromStringWithProgress(content,
-        [&dlg](int percent, const wxString& status) -> bool {
-            return dlg.Update(percent, status);
+    bool cancelled = false;
+    bool success = editor->LoadFromStringWithProgress(content,
+        [&dlg, &cancelled](int percent, const wxString& status) -> bool {
+            bool cont = dlg.Update(percent, status);
+            if (!cont)
+            {
+                cancelled = true;
+                return false;
+            }
+            return true;
         });
+    
+    // Trigger auto-hide by updating to 100%
+    if (!cancelled)
+    {
+        dlg.Update(100, "Complete");
+    }
+    
+    // If cancelled, clear the editor
+    if (cancelled)
+    {
+        editor->ClearAll();
+        return false;
+    }
+    
+    return success;
 }
+
