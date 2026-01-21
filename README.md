@@ -1,6 +1,6 @@
 # XML Viewer
 
-A cross-platform desktop application for conveniently reading large XML files, built with wxWidgets.
+A cross-platform desktop application for conveniently reading large XML files, built with wxWidgets 3.2.
 
 ## Features
 
